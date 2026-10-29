@@ -40,6 +40,17 @@ omarchy_scan_schemas:
   - {schema: org.gnome.shell.extensions.tilingshell, ext: tilingshell@ferrarodomenico.com}
   - {schema: org.gnome.shell.extensions.dash-to-dock, ext: dash-to-dock@micxgx.gmail.com}
 
+# Abre o navegador padrão (x-scheme-handler/https) pela ação do .desktop
+# passada como argumento (new-window, new-private-window: Firefox,
+# Chromium, Brave…). Sem a ação, new-window cai no launch comum; a janela
+# privativa não abre uma comum no lugar. O xdg-mime não vem na imagem.
+omarchy_browser_command: >-
+  /usr/bin/python3 -c 'import sys, gi; gi.require_version("GioUnix", "2.0");
+  from gi.repository import Gio, GioUnix;
+  a = GioUnix.DesktopAppInfo.new(Gio.AppInfo.get_default_for_uri_scheme("https").get_id());
+  act = sys.argv[1];
+  a.launch_action(act, None) if act in a.list_actions() else act == "new-window" and a.launch([], None)'
+
 omarchy_keybindings:
   # ── Janelas ───────────────────────────────────────────────────────────
   - id: close
@@ -77,16 +88,23 @@ omarchy_keybindings:
   - id: browser
     group: apps
     title: Super+Shift+Enter navegador
-    effect: o navegador padrão (xdg-mime)
+    effect: nova janela do navegador padrão
     default: true
-    custom: {name: 'Omarchy: Browser', binding: '<Super><Shift>Return', command: 'sh -c ''gtk-launch "$(xdg-mime query default x-scheme-handler/https)"'''}
+    custom: {name: 'Omarchy: Browser', binding: '<Super><Shift>Return', command: '{{ omarchy_browser_command }} new-window'}
 
   - id: browser-b
     group: apps
     title: Super+Shift+B navegador
-    effect: o navegador padrão (xdg-mime)
+    effect: nova janela do navegador padrão
     default: true
-    custom: {name: 'Omarchy: Browser (B)', binding: '<Super><Shift>b', command: 'sh -c ''gtk-launch "$(xdg-mime query default x-scheme-handler/https)"'''}
+    custom: {name: 'Omarchy: Browser (B)', binding: '<Super><Shift>b', command: '{{ omarchy_browser_command }} new-window'}
+
+  - id: browser-private
+    group: apps
+    title: Super+Shift+Alt+B navegador em janela privativa
+    effect: janela privativa do navegador padrão (se ele tiver a ação)
+    default: true
+    custom: {name: 'Omarchy: Browser (private)', binding: '<Super><Shift><Alt>b', command: '{{ omarchy_browser_command }} new-private-window'}
 
   - id: files
     group: apps

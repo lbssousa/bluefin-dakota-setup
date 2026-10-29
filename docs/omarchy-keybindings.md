@@ -5,7 +5,7 @@ GNOME Shell 51 + extensões) e os atalhos padrão do
 [Omarchy](https://github.com/omacom/omarchy) v4 (Hyprland), mais a estratégia
 e a automação (feature `omarchy-keybindings`,
 `playbooks/user/omarchy-keybindings.yml`) que aproximam o primeiro
-do segundo. O catálogo é restrito a janelas, apps e utilitários (13 itens),
+do segundo. O catálogo é restrito a janelas, apps e utilitários (14 itens),
 sem mexer no fluxo de workspaces, tiling e Shell do GNOME: cada linha ✅/🔁/➕
 das tabelas abaixo é um item que você liga ou desliga à parte em
 `just configure` (ou `just configure-keybindings`); as linhas ➖ têm
@@ -151,7 +151,8 @@ equivalente no GNOME · ⚙️ já era igual antes.
 |---|---|---|---|---|
 | `Super+Enter` | Terminal | `Ctrl+Alt+T`, `Ctrl+Alt+Enter` (mantidos) | + `Super+Enter` | ➕ |
 | `Super+Alt+Enter` | Terminal + tmux | — | inalterado | ➖ |
-| `Super+Shift+Enter` / `Super+Shift+B` | Navegador | — | navegador padrão (`xdg-mime`) | ➕ |
+| `Super+Shift+Enter` / `Super+Shift+B` | Navegador | — | nova janela do navegador padrão | ➕ |
+| `Super+Shift+Alt+B` | Navegador em janela privativa | — | janela privativa do navegador padrão | ➕ |
 | `Super+Shift+F` | Gerenciador de arquivos | `Super+E` (mantido) | + `Super+Shift+F` | ➕ |
 | `Super+Shift+N` | Editor | — | `nvim` no terminal | ➕ |
 | `Super+Shift+/` | Senhas (1Password) | — | Bitwarden (ou KeePassXC) | 🔁 |
