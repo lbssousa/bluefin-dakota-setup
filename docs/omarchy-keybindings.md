@@ -154,7 +154,7 @@ equivalente no GNOME · ⚙️ já era igual antes.
 | `Super+Shift+Enter` / `Super+Shift+B` | Navegador | — | navegador padrão (`xdg-mime`) | ➕ |
 | `Super+Shift+F` | Gerenciador de arquivos | `Super+E` (mantido) | + `Super+Shift+F` | ➕ |
 | `Super+Shift+N` | Editor | — | `nvim` no terminal | ➕ |
-| `Super+Shift+/` | Senhas (1Password) | — | KeePassXC | 🔁 |
+| `Super+Shift+/` | Senhas (1Password) | — | Bitwarden (ou KeePassXC) | 🔁 |
 | `Super+Shift+A/Y/X/G/P/S…` | Webapps (ChatGPT, YouTube, X, Maps…) | — | inalterado | ➖ |
 | `Super+Shift+D/M/O/W/C/E` | Docker, música, Obsidian, Hey… | — | — (apps do Omarchy) | ⛔ |
 

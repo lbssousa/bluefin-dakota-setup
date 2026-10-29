@@ -105,9 +105,9 @@ omarchy_keybindings:
   - id: passwords
     group: apps
     title: Super+Shift+/ senhas
-    effect: KeePassXC (Flatpak) no lugar do 1Password
+    effect: Bitwarden (Flatpak) no lugar do 1Password; sem ele, KeePassXC (Flatpak)
     default: true
-    custom: {name: 'Omarchy: Passwords', binding: '<Super><Shift>slash', command: 'flatpak run org.keepassxc.KeePassXC', check: 'flatpak info org.keepassxc.KeePassXC'}
+    custom: {name: 'Omarchy: Passwords', binding: '<Super><Shift>slash', command: 'sh -c ''if flatpak info com.bitwarden.desktop >/dev/null 2>&1; then exec flatpak run com.bitwarden.desktop; else exec flatpak run org.keepassxc.KeePassXC; fi''', check: 'flatpak info com.bitwarden.desktop || flatpak info org.keepassxc.KeePassXC'}
 
   # ── Utilitários ───────────────────────────────────────────────────────
   - id: calculator
