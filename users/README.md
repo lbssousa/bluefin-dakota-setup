@@ -11,7 +11,6 @@ típicas:
 |---|---|
 | `emacs_font_family`, `emacs_font_size` | fonte do Emacs |
 | `emacs_packages` | pacotes Emacs instalados pelo package.el |
-| `omarchy_keys_webapps`, `omarchy_keys_static_workspaces` | opções dos atalhos no estilo Omarchy |
 | `proton_pass_ssh_agent_wait_seconds` | espera pelo agente SSH antes de injetar as chaves do Proton Pass |
 
 Dados pessoais ficam fora do repositório, em

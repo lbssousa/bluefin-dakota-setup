@@ -15,13 +15,13 @@
 #      escolhido toca mais (valores originais em omarchy_keybindings_state).
 #      Atalhos customizados em custom-keybindings/omarchy-*, sem tocar nos
 #      customN existentes.
-#   2. Bloco gerenciado no Ghostty com as linhas dos itens escolhidos.
+#   2. Bloco gerenciado no Ghostty com as linhas dos itens escolhidos (hoje
+#      nenhum: o bloco de versões anteriores é removido).
 # Desligada: nenhum item, ou seja, tudo volta ao original.
 #
 # Simular: just omarchy-keybindings-dry-run
 #
-# Os atalhos valem na hora; os do Tiling Shell/Dash to Dock só com a
-# extensão instalada.
+# Os atalhos valem na hora.
 - name: Atalhos de teclado no estilo Omarchy
   hosts: localhost
   connection: local

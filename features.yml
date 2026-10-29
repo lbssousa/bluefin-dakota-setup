@@ -119,7 +119,7 @@ features:
   - id: omarchy-keybindings
     group: desktop
     title: Atalhos no estilo Omarchy
-    effect: modifies os atalhos do GNOME (gsettings, Tiling Shell, Dash to Dock) e do Ghostty, escolhidos um a um em seguida (just configure-keybindings); desmarcar um atalho, ou desligar, devolve o que ele mudou ao original
+    effect: modifies atalhos do GNOME para janelas, apps e utilitários (gsettings), escolhidos um a um em seguida (just configure-keybindings); desmarcar um atalho, ou desligar, devolve o que ele mudou ao original
     phases: [user]
     default: false
     revert: true

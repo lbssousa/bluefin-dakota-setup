@@ -1,5 +1,6 @@
 # Catálogo dos atalhos no estilo Omarchy (default/hypr/bindings/*.lua,
-# branch quattro / v4), um item por atalho. Lido por
+# branch quattro / v4), um item por atalho, restrito a janelas, apps e
+# utilitários que não mexem no fluxo de workspaces/tiling do GNOME. Lido por
 # playbooks/user/omarchy-keybindings.yml e por scripts/features.py (o menu
 # detalhado de `just configure`). A comparação completa, com o que NÃO tem
 # equivalente no GNOME, está em docs/omarchy-keybindings.md.
@@ -25,14 +26,8 @@
 
 omarchy_keybinding_groups:
   windows: Janelas
-  tiling: Tiling Shell (foco e posição)
-  workspaces: Workspaces e alternância
-  shell: Shell e sistema
-  capture: Captura
   apps: Aplicativos
-  panels: Painéis e utilitários
-  webapps: Webapps (abrem no navegador padrão)
-  ghostty: Terminal (Ghostty)
+  panels: Utilitários
 
 # Schemas varridos atrás de colisões, com a extensão dona do schema (o
 # motor acha o diretório de schemas dela).
@@ -71,168 +66,6 @@ omarchy_keybindings:
     bind:
       - {schema: org.gnome.desktop.wm.keybindings, key: toggle-maximized, add: ['<Super><Alt>f']}
 
-  - id: pin
-    group: windows
-    title: Super+O fixar em todos os workspaces
-    effect: '"pop out" do Omarchy ≈ visível em todos os workspaces; a trava de rotação fica só na tecla XF86'
-    default: true
-    bind:
-      - {schema: org.gnome.desktop.wm.keybindings, key: toggle-on-all-workspaces, add: ['<Super>o']}
-
-  - id: monitor
-    group: windows
-    title: Super+Shift+Alt+setas movem a janela para outro monitor
-    effect: no Omarchy movem o workspace; tira Super+Shift+Alt+←/→ de mover a janela de workspace
-    default: true
-    bind:
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-monitor-left,  add: ['<Super><Shift><Alt>Left']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-monitor-right, add: ['<Super><Shift><Alt>Right']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-monitor-up,    add: ['<Super><Shift><Alt>Up']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-monitor-down,  add: ['<Super><Shift><Alt>Down']}
-
-  # ── Tiling Shell ──────────────────────────────────────────────────────
-  - id: untile
-    group: tiling
-    title: Super+T solta a janela do tile
-    effect: alternar flutuante/tiling do Omarchy ≈ untile do Tiling Shell
-    default: true
-    bind:
-      - {schema: org.gnome.shell.extensions.tilingshell, key: untile-window, add: ['<Super>t']}
-
-  - id: focus
-    group: tiling
-    title: Super+setas movem o foco
-    effect: foco direcional do Tiling Shell; tira Super+setas de mover entre tiles, maximizar/desmaximizar e tile à esquerda/direita
-    default: true
-    bind:
-      - {schema: org.gnome.shell.extensions.tilingshell, key: focus-window-left,  add: ['<Super>Left']}
-      - {schema: org.gnome.shell.extensions.tilingshell, key: focus-window-right, add: ['<Super>Right']}
-      - {schema: org.gnome.shell.extensions.tilingshell, key: focus-window-up,    add: ['<Super>Up']}
-      - {schema: org.gnome.shell.extensions.tilingshell, key: focus-window-down,  add: ['<Super>Down']}
-
-  - id: swap
-    group: tiling
-    title: Super+Shift+setas trocam a janela de tile
-    effect: move-window-* do Tiling Shell; tira Super+Shift+setas de mover a janela para outro monitor
-    default: true
-    bind:
-      - {schema: org.gnome.shell.extensions.tilingshell, key: move-window-left,  add: ['<Super><Shift>Left']}
-      - {schema: org.gnome.shell.extensions.tilingshell, key: move-window-right, add: ['<Super><Shift>Right']}
-      - {schema: org.gnome.shell.extensions.tilingshell, key: move-window-up,    add: ['<Super><Shift>Up']}
-      - {schema: org.gnome.shell.extensions.tilingshell, key: move-window-down,  add: ['<Super><Shift>Down']}
-
-  # ── Workspaces e alternância ──────────────────────────────────────────
-  - id: workspace-numbers
-    group: workspaces
-    title: Super+1…0 vão ao workspace N
-    effect: 10 workspaces fixos (não dinâmicos); tira Super+1…0 dos apps do dash e do Dash to Dock
-    default: true
-    set:
-      - {schema: org.gnome.mutter, key: dynamic-workspaces, value: 'false'}
-      - {schema: org.gnome.desktop.wm.preferences, key: num-workspaces, value: '10'}
-      - {schema: org.gnome.shell.extensions.dash-to-dock, key: hot-keys, value: 'false'}
-    bind:
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-1,  add: ['<Super>1']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-2,  add: ['<Super>2']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-3,  add: ['<Super>3']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-4,  add: ['<Super>4']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-5,  add: ['<Super>5']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-6,  add: ['<Super>6']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-7,  add: ['<Super>7']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-8,  add: ['<Super>8']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-9,  add: ['<Super>9']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-10, add: ['<Super>0']}
-
-  - id: workspace-move-numbers
-    group: workspaces
-    title: Super+Shift+1…0 movem a janela para o workspace N
-    effect: 10 workspaces fixos (não dinâmicos); tira Super+Shift+1…0 do Dash to Dock
-    default: true
-    set:
-      - {schema: org.gnome.mutter, key: dynamic-workspaces, value: 'false'}
-      - {schema: org.gnome.desktop.wm.preferences, key: num-workspaces, value: '10'}
-    bind:
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-1,  add: ['<Super><Shift>1']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-2,  add: ['<Super><Shift>2']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-3,  add: ['<Super><Shift>3']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-4,  add: ['<Super><Shift>4']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-5,  add: ['<Super><Shift>5']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-6,  add: ['<Super><Shift>6']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-7,  add: ['<Super><Shift>7']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-8,  add: ['<Super><Shift>8']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-9,  add: ['<Super><Shift>9']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-10, add: ['<Super><Shift>0']}
-
-  - id: workspace-tab
-    group: workspaces
-    title: Super+Tab / Super+Shift+Tab próximo / anterior workspace
-    effect: tira Super+Tab de alternar aplicativos (Alt+Tab continua)
-    default: true
-    bind:
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-right, add: ['<Super>Tab']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-left,  add: ['<Super><Shift>Tab']}
-
-  - id: alt-tab-windows
-    group: workspaces
-    title: Alt+Tab alterna janelas em vez de aplicativos
-    effect: como no Omarchy, cada janela é uma entrada (o GNOME agrupa por aplicativo)
-    default: true
-    bind:
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-windows,          add: ['<Alt>Tab']}
-      - {schema: org.gnome.desktop.wm.keybindings, key: switch-windows-backward, add: ['<Shift><Alt>Tab']}
-
-  # ── Shell e sistema ───────────────────────────────────────────────────
-  - id: overview
-    group: shell
-    title: Super+Espaço abre a Visão geral
-    effect: menu/launcher do Omarchy ≈ Visão geral; tira Super+Espaço de trocar a fonte de entrada
-    default: true
-    bind:
-      - {schema: org.gnome.shell.keybindings, key: toggle-overview, add: ['<Super>space']}
-
-  - id: app-grid
-    group: shell
-    title: Super+Alt+Espaço abre a grade de aplicativos
-    effect: menu de apps do Omarchy; Super+A continua
-    default: true
-    bind:
-      - {schema: org.gnome.shell.keybindings, key: toggle-application-view, add: ['<Super><Alt>space']}
-
-  - id: lock
-    group: shell
-    title: Super+Ctrl+L bloqueia a tela
-    effect: Super+L deixa de bloquear
-    default: true
-    bind:
-      - {schema: org.gnome.settings-daemon.plugins.media-keys, key: screensaver, add: ['<Super><Control>l'], remove: ['<Super>l']}
-
-  - id: notifications
-    group: shell
-    title: Super+Shift+Alt+vírgula abre a bandeja de notificações
-    effect: histórico de notificações do Omarchy; Super+V/Super+M continuam
-    default: true
-    bind:
-      - {schema: org.gnome.shell.keybindings, key: toggle-message-tray, add: ['<Super><Shift><Alt>comma']}
-
-  - id: zoom
-    group: shell
-    title: Super+Ctrl+Z amplia / Super+Ctrl+Alt+Z liga-desliga a lupa
-    effect: zoom do Omarchy ≈ lupa do GNOME; os atalhos Alt+Super+8/= continuam
-    default: true
-    bind:
-      - {schema: org.gnome.settings-daemon.plugins.media-keys, key: magnifier-zoom-in, add: ['<Super><Control>z']}
-      - {schema: org.gnome.settings-daemon.plugins.media-keys, key: magnifier,         add: ['<Super><Control><Alt>z']}
-
-  # ── Captura ───────────────────────────────────────────────────────────
-  - id: screen-recording
-    group: capture
-    title: Alt+Print grava a tela
-    effect: o screenshot de janela vai de Alt+Print para Shift+Alt+Print
-    default: true
-    bind:
-      - {schema: org.gnome.shell.keybindings, key: show-screen-recording-ui, add: ['<Alt>Print']}
-      - {schema: org.gnome.shell.keybindings, key: screenshot-window,        add: ['<Shift><Alt>Print']}
-
   # ── Aplicativos ───────────────────────────────────────────────────────
   - id: terminal
     group: apps
@@ -240,13 +73,6 @@ omarchy_keybindings:
     effect: xdg-terminal-exec
     default: true
     custom: {name: 'Omarchy: Terminal', binding: '<Super>Return', command: 'xdg-terminal-exec', check: 'command -v xdg-terminal-exec'}
-
-  - id: tmux
-    group: apps
-    title: Super+Alt+Enter terminal com tmux
-    effect: xdg-terminal-exec tmux
-    default: true
-    custom: {name: 'Omarchy: Tmux', binding: '<Super><Alt>Return', command: 'xdg-terminal-exec tmux', check: 'command -v tmux || test -x /home/linuxbrew/.linuxbrew/bin/tmux'}
 
   - id: browser
     group: apps
@@ -283,7 +109,7 @@ omarchy_keybindings:
     default: true
     custom: {name: 'Omarchy: Passwords', binding: '<Super><Shift>slash', command: 'flatpak run org.keepassxc.KeePassXC', check: 'flatpak info org.keepassxc.KeePassXC'}
 
-  # ── Painéis e utilitários ─────────────────────────────────────────────
+  # ── Utilitários ───────────────────────────────────────────────────────
   - id: calculator
     group: panels
     title: Super+Ctrl+Q calculadora
@@ -305,138 +131,10 @@ omarchy_keybindings:
     default: true
     custom: {name: 'Omarchy: Activity', binding: '<Super><Control>t', command: 'flatpak run io.missioncenter.MissionCenter', check: 'flatpak info io.missioncenter.MissionCenter'}
 
-  - id: audio
+  - id: zoom
     group: panels
-    title: Super+Ctrl+A painel de som
-    effect: gnome-control-center sound
+    title: Super+Ctrl+Z amplia a lupa
+    effect: zoom do Omarchy ≈ lupa do GNOME; os atalhos Alt+Super+8/= continuam
     default: true
-    custom: {name: 'Omarchy: Audio', binding: '<Super><Control>a', command: 'gnome-control-center sound', check: 'command -v gnome-control-center'}
-
-  - id: bluetooth
-    group: panels
-    title: Super+Ctrl+B painel de Bluetooth
-    effect: gnome-control-center bluetooth
-    default: true
-    custom: {name: 'Omarchy: Bluetooth', binding: '<Super><Control>b', command: 'gnome-control-center bluetooth', check: 'command -v gnome-control-center'}
-
-  - id: display
-    group: panels
-    title: Super+Ctrl+D painel de telas
-    effect: gnome-control-center display
-    default: true
-    custom: {name: 'Omarchy: Display', binding: '<Super><Control>d', command: 'gnome-control-center display', check: 'command -v gnome-control-center'}
-
-  - id: network
-    group: panels
-    title: Super+Ctrl+W painel de Wi-Fi
-    effect: gnome-control-center wifi
-    default: true
-    custom: {name: 'Omarchy: Network', binding: '<Super><Control>w', command: 'gnome-control-center wifi', check: 'command -v gnome-control-center'}
-
-  - id: power
-    group: panels
-    title: Super+Ctrl+P painel de energia
-    effect: gnome-control-center power
-    default: true
-    custom: {name: 'Omarchy: Power', binding: '<Super><Control>p', command: 'gnome-control-center power', check: 'command -v gnome-control-center'}
-
-  - id: calendar
-    group: panels
-    title: Super+Ctrl+Alt+D calendário
-    effect: GNOME Calendar (Flatpak)
-    default: true
-    custom: {name: 'Omarchy: Calendar', binding: '<Super><Control><Alt>d', command: 'flatpak run org.gnome.Calendar', check: 'flatpak info org.gnome.Calendar'}
-
-  - id: world-clock
-    group: panels
-    title: Super+Ctrl+Alt+E relógio mundial
-    effect: GNOME Clocks (Flatpak)
-    default: true
-    custom: {name: 'Omarchy: World clock', binding: '<Super><Control><Alt>e', command: 'flatpak run org.gnome.clocks', check: 'flatpak info org.gnome.clocks'}
-
-  - id: nightlight
-    group: panels
-    title: Super+Ctrl+N alterna a luz noturna
-    effect: night-light-enabled do gnome-settings-daemon
-    default: true
-    custom: {name: 'Omarchy: Toggle nightlight', binding: '<Super><Control>n', command: 'sh -c ''s=org.gnome.settings-daemon.plugins.color; k=night-light-enabled; if [ "$(gsettings get $s $k)" = true ]; then gsettings set $s $k false; else gsettings set $s $k true; fi'''}
-
-  # ── Webapps (o Omarchy abre janela de "app"; aqui, aba no navegador) ──
-  - id: webapp-chatgpt
-    group: webapps
-    title: Super+Shift+A ChatGPT
-    effect: xdg-open https://chatgpt.com
-    default: false
-    custom: {name: 'Omarchy: ChatGPT', binding: '<Super><Shift>a', command: 'xdg-open https://chatgpt.com'}
-
-  - id: webapp-grok
-    group: webapps
-    title: Super+Shift+Alt+A Grok
-    effect: xdg-open https://grok.com
-    default: false
-    custom: {name: 'Omarchy: Grok', binding: '<Super><Shift><Alt>a', command: 'xdg-open https://grok.com'}
-
-  - id: webapp-youtube
-    group: webapps
-    title: Super+Shift+Y YouTube
-    effect: xdg-open https://youtube.com/
-    default: false
-    custom: {name: 'Omarchy: YouTube', binding: '<Super><Shift>y', command: 'xdg-open https://youtube.com/'}
-
-  - id: webapp-whatsapp
-    group: webapps
-    title: Super+Shift+Alt+G WhatsApp
-    effect: xdg-open https://web.whatsapp.com/
-    default: false
-    custom: {name: 'Omarchy: WhatsApp', binding: '<Super><Shift><Alt>g', command: 'xdg-open https://web.whatsapp.com/'}
-
-  - id: webapp-photos
-    group: webapps
-    title: Super+Shift+P Google Photos
-    effect: xdg-open https://photos.google.com/
-    default: false
-    custom: {name: 'Omarchy: Google Photos', binding: '<Super><Shift>p', command: 'xdg-open https://photos.google.com/'}
-
-  - id: webapp-maps
-    group: webapps
-    title: Super+Shift+S Google Maps
-    effect: xdg-open https://maps.google.com/
-    default: false
-    custom: {name: 'Omarchy: Google Maps', binding: '<Super><Shift>s', command: 'xdg-open https://maps.google.com/'}
-
-  - id: webapp-x
-    group: webapps
-    title: Super+Shift+X X
-    effect: xdg-open https://x.com/
-    default: false
-    custom: {name: 'Omarchy: X', binding: '<Super><Shift>x', command: 'xdg-open https://x.com/'}
-
-  # ── Terminal (Ghostty; default/config/ghostty/config do Omarchy) ──────
-  - id: ghostty-clipboard
-    group: ghostty
-    title: Shift+Insert / Ctrl+Insert colar e copiar no Ghostty
-    effect: bloco gerenciado em ~/.config/ghostty/config.ghostty
-    default: true
-    ghostty:
-      - 'keybind = shift+insert=paste_from_clipboard'
-      - 'keybind = control+insert=copy_to_clipboard'
-
-  - id: ghostty-csi-u
-    group: ghostty
-    title: Shift+Enter / Alt+Shift+Enter distinguíveis no Ghostty
-    effect: enviam CSI-u (TUIs distinguem Shift+Enter; o tmux casa M-S-Enter)
-    default: true
-    ghostty:
-      - 'keybind = shift+enter=csi:13;2u'
-      - 'keybind = alt+shift+enter=csi:13;4u'
-
-  - id: ghostty-resize
-    group: ghostty
-    title: Super+Ctrl+Shift+Alt+setas redimensionam o split no Ghostty
-    effect: resize_split de 100 px
-    default: true
-    ghostty:
-      - 'keybind = super+control+shift+alt+arrow_down=resize_split:down,100'
-      - 'keybind = super+control+shift+alt+arrow_up=resize_split:up,100'
-      - 'keybind = super+control+shift+alt+arrow_left=resize_split:left,100'
-      - 'keybind = super+control+shift+alt+arrow_right=resize_split:right,100'
+    bind:
+      - {schema: org.gnome.settings-daemon.plugins.media-keys, key: magnifier-zoom-in, add: ['<Super><Control>z']}

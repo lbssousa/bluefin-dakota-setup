@@ -5,8 +5,11 @@ GNOME Shell 51 + extensões) e os atalhos padrão do
 [Omarchy](https://github.com/omacom/omarchy) v4 (Hyprland), mais a estratégia
 e a automação (feature `omarchy-keybindings`,
 `playbooks/user/omarchy-keybindings.yml`) que aproximam o primeiro
-do segundo. Cada linha ✅/🔁/➕ das tabelas abaixo é um item que você liga ou
-desliga à parte em `just configure` (ou `just configure-keybindings`).
+do segundo. O catálogo é restrito a janelas, apps e utilitários (13 itens),
+sem mexer no fluxo de workspaces, tiling e Shell do GNOME: cada linha ✅/🔁/➕
+das tabelas abaixo é um item que você liga ou desliga à parte em
+`just configure` (ou `just configure-keybindings`); as linhas ➖ têm
+equivalente, mas ficam de fora.
 
 - **Fonte do Omarchy:** `default/hypr/bindings/{tiling,utilities,applications,media,clipboard}.lua`
   e `config/ghostty/config`, branch `quattro` (release v4.0.4, 2026‑09‑15).
@@ -56,33 +59,24 @@ Tiling Shell desliga `maximize`/`unmaximize` (`Super+↑/↓`) e `toggle-tiled-*
 
 ## 2. Estratégia
 
-1. **Mapear 1:1 quando o GNOME tem a função.** Fechar, tela cheia, maximizar,
-   workspaces 1–10, mover janela, monitor, lupa, lock, gravação de tela e
-   troca de janelas existem como chaves do GNOME → só mudam de tecla.
-2. **Usar o Tiling Shell para o que o GNOME não tem** (foco direcional, trocar
-   janelas de posição, float/tile ≈ *untile*). Funciona só com a extensão
-   habilitada; sem ela as chaves ficam inertes.
-3. **Atalhos de apps/painéis viram *custom keybindings*** (`omarchy-<id>`), sem
-   tocar nos seus `customN` (um `customN` com o mesmo atalho gera um aviso). Cada um tem um `check` (o atalho é pulado se o
-   app não estiver instalado). Painéis do Omarchy (`Super+Ctrl+A/B/W/D/P`)
-   viram `gnome-control-center <painel>`.
+1. **Mapear 1:1 quando o GNOME tem a função.** Fechar, tela cheia,
+   maximizar e lupa existem como chaves do GNOME → só ganham a tecla do
+   Omarchy (a original continua).
+2. **Não mexer no fluxo do GNOME.** Workspaces (`Super+1…0`, `Super+Tab`),
+   foco e posição do Tiling Shell (`Super+setas`), visão geral, bloqueio,
+   notificações, `Alt+Tab` e captura ficam com os atalhos do GNOME (➖).
+3. **Atalhos de apps e utilitários viram *custom keybindings*** (`omarchy-<id>`),
+   sem tocar nos seus `customN` (um `customN` com o mesmo atalho gera um
+   aviso). Cada um tem um `check` (o atalho é pulado se o app não estiver
+   instalado).
 4. **Resolver colisões automaticamente.** O GNOME aceita o mesmo atalho em
    duas ações e o resultado é imprevisível. Cada atalho escolhido é
    acrescentado à sua ação e tirado de qualquer outra chave dos schemas do
    wm, mutter, Shell, media-keys, Tiling Shell e Dash to Dock — o resto da
-   chave fica. Exemplos: `Super+1…0` sai dos apps do dash e do Dash to Dock;
-   `Super+Q` sai do Dash to Dock; `Super+Espaço` sai da troca de fonte de
-   entrada; `Super+O` sai da trava de rotação; `Alt+Print` sai do screenshot
-   de janela; `Super+Tab` sai de alternar apps. Só o que não é colisão é
-   explícito no catálogo (`Super+L` deixa de bloquear).
-5. **Workspaces fixos.** O Omarchy tem 10 workspaces; `Super+N` leva ao N mesmo
-   vazio. Para isso o GNOME precisa de workspaces estáticos
-   (`dynamic-workspaces=false`, `num-workspaces=10`), que vêm com os itens
-   `Super+1…0` e `Super+Shift+1…0`: sem os dois, os workspaces voltam a ser
-   dinâmicos.
-6. **O que não tem equivalente fica como está** (tabela 4) — não se rouba um
+   chave fica. Exemplo: `Super+Q` sai do Dash to Dock.
+5. **O que não tem equivalente fica como está** (tabela 4) — não se rouba um
    atalho do GNOME para uma função que não existe.
-7. **Reversível, chave a chave.** O valor original de cada chave tocada fica em
+6. **Reversível, chave a chave.** O valor original de cada chave tocada fica em
    `~/.local/share/bluefin-dakota-setup/omarchy-keybindings.json`, e o valor
    aplicado é sempre recalculado a partir dele: desmarcar um item devolve ao
    original as chaves que só ele mudava; desligar a feature desmarca todos.
@@ -92,7 +86,8 @@ Tiling Shell desliga `maximize`/`unmaximize` (`Super+↑/↓`) e `toggle-tiled-*
 ## 3. Comparação por grupo
 
 Legenda: ✅ igual · 🔁 equivalente aproximado (função análoga) · ➕ novo atalho
-(custom) · ⛔ sem equivalente no GNOME · ⚙️ já era igual antes.
+(custom) · ➖ tem equivalente, mas fica de fora do catálogo · ⛔ sem
+equivalente no GNOME · ⚙️ já era igual antes.
 
 ### 3.1 Janelas
 
@@ -103,12 +98,12 @@ Legenda: ✅ igual · 🔁 equivalente aproximado (função análoga) · ➕ nov
 | `Super+F` | Tela cheia | — | `Super+F` | ✅ |
 | `Super+Alt+F` | "Full width" | `Alt+F10` | `Alt+F10` + `Super+Alt+F` | 🔁 |
 | `Super+Ctrl+F`, `Super+Ctrl+Alt+F` | Fullscreen em tiles / desktop | — | — | ⛔ |
-| `Super+T` | Alternar flutuante/tiling | — | `Super+T` → *untile* (Tiling Shell) | 🔁 |
-| `Super+O` | Pop-out (float + pin) | `Super+O` = trava rotação | `Super+O` → em todos os workspaces | 🔁 |
+| `Super+T` | Alternar flutuante/tiling | — | inalterado | ➖ |
+| `Super+O` | Pop-out (float + pin) | `Super+O` = trava rotação | inalterado | ➖ |
 | `Super+J`, `Super+P`, `Super+G`… | Split, pseudo, grupos (abas) | `Super+P` = espelhar tela | inalterado | ⛔ |
-| `Super+←/→/↑/↓` | **Foco** direcional | Tiling Shell: mover janela | **Foco** (Tiling Shell `focus-window-*`) | ✅ |
-| `Super+Shift+←/→/↑/↓` | **Trocar** janela de lugar | mover janela p/ monitor | mover/trocar tile (`move-window-*`) | ✅ |
-| `Super+Shift+Alt+←/→/↑/↓` | Mover workspace p/ monitor | mover p/ workspace (esq/dir) | mover **janela** p/ monitor | 🔁 |
+| `Super+←/→/↑/↓` | **Foco** direcional | Tiling Shell: mover janela | inalterado | ➖ |
+| `Super+Shift+←/→/↑/↓` | **Trocar** janela de lugar | mover janela p/ monitor | inalterado | ➖ |
+| `Super+Shift+Alt+←/→/↑/↓` | Mover workspace p/ monitor | mover p/ workspace (esq/dir) | inalterado | ➖ |
 | `Super+Home` / `Super+Alt+Home` | Restaurar/salvar largura | `Super+Home` = workspace 1 | inalterado | ⛔ |
 | `Super+Alt+←/→/↑/↓`, `Super+Ctrl+←/→` | Mover para / navegar grupos | `Super+Alt+←/→` = workspace | inalterado | ⛔ |
 | `Super+=`/`Super+-` (+`Alt`/`Ctrl`) | Redimensionar janela | — | — (use `Alt+F8` / mouse) | ⛔ |
@@ -118,12 +113,12 @@ Legenda: ✅ igual · 🔁 equivalente aproximado (função análoga) · ➕ nov
 
 | Omarchy | Função | Antes | Depois | |
 |---|---|---|---|---|
-| `Super+1…0` | Ir ao workspace N | `Super+N` = app N do dash/dock | workspace N (dock/dash liberados) | ✅ |
-| `Super+Shift+1…0` | Mover janela p/ workspace N | — | idem | ✅ |
+| `Super+1…0` | Ir ao workspace N | `Super+N` = app N do dash/dock | inalterado | ➖ |
+| `Super+Shift+1…0` | Mover janela p/ workspace N | — | inalterado | ➖ |
 | `Super+Shift+Alt+1…0` | Mover sem seguir | — | — | ⛔ |
-| `Super+Tab` / `Super+Shift+Tab` | Próximo / anterior workspace | alternar **apps** | próximo / anterior workspace | ✅ |
+| `Super+Tab` / `Super+Shift+Tab` | Próximo / anterior workspace | alternar **apps** | inalterado | ➖ |
 | `Super+Ctrl+Tab` | Workspace anterior (histórico) | — | — | ⛔ |
-| `Alt+Tab` / `Alt+Shift+Tab` | Próxima / anterior janela | próximo / anterior **app** | próxima / anterior janela (`switch-windows`) | ✅ |
+| `Alt+Tab` / `Alt+Shift+Tab` | Próxima / anterior janela | próximo / anterior **app** | inalterado | ➖ |
 | `Ctrl+Alt+Tab` | Foco no próximo monitor | foco nos painéis (a11y) | inalterado | ⛔ |
 | `Super+S`, `Super+\`` | Scratchpad | `Super+S` = config. rápidas | inalterado | ⛔ |
 | `Super+scroll` | Rolar workspaces | — | — | ⛔ |
@@ -132,20 +127,20 @@ Legenda: ✅ igual · 🔁 equivalente aproximado (função análoga) · ➕ nov
 
 | Omarchy | Função | Antes | Depois | |
 |---|---|---|---|---|
-| `Super+Espaço` | Menu Omarchy / launcher | trocar fonte de entrada | Visão geral (`toggle-overview`) | 🔁 |
-| `Super+Alt+Espaço` | Menu de apps | `Super+A` = grade de apps | grade de apps (`Super+A` continua) | 🔁 |
+| `Super+Espaço` | Menu Omarchy / launcher | trocar fonte de entrada | inalterado | ➖ |
+| `Super+Alt+Espaço` | Menu de apps | `Super+A` = grade de apps | inalterado | ➖ |
 | `Super+Esc` | Menu do sistema | restaurar atalhos (Wayland) | inalterado (necessário em VMs/RDP) | ⛔ |
 | `Super+K` (+`Alt`/`Ctrl`) | Lista de atalhos | — | — (este documento) | ⛔ |
 | `Super+Ctrl+Q` | Calculadora | — | Calculadora | ➕ |
 | `Super+Ctrl+E` | Emojis | `Ctrl+Alt+Espaço`, `Super+.` (mantidos) | + `Super+Ctrl+E` | ➕ |
 | `Super+Ctrl+T` | Atividade (btop) | `Ctrl+Shift+Esc` (mantido) | + `Super+Ctrl+T` → Mission Center | ➕ |
-| `Super+Ctrl+A/B/W/D/P` | Painéis Áudio/Bluetooth/Rede/Tela/Energia | — | `gnome-control-center sound/bluetooth/wifi/display/power` | ➕ |
-| `Super+Ctrl+Alt+D` / `+E` | Calendário / relógio mundial | — | Calendário / Relógios | ➕ |
-| `Super+Ctrl+N` | Alternar luz noturna | — | alterna `night-light-enabled` | ➕ |
-| `Super+Ctrl+L` | Bloquear sistema | `Super+L` | `Super+Ctrl+L` (`Super+L` liberado) | ✅ |
-| `Super+Ctrl+Z` / `+Alt+Z` | Zoom / resetar zoom | `Alt+Super+=`, `Alt+Super+8` | `Super+Ctrl+Z` / `Super+Ctrl+Alt+Z` (lupa) | 🔁 |
+| `Super+Ctrl+A/B/W/D/P` | Painéis Áudio/Bluetooth/Rede/Tela/Energia | — | inalterado | ➖ |
+| `Super+Ctrl+Alt+D` / `+E` | Calendário / relógio mundial | — | inalterado | ➖ |
+| `Super+Ctrl+N` | Alternar luz noturna | — | inalterado | ➖ |
+| `Super+Ctrl+L` | Bloquear sistema | `Super+L` | inalterado | ➖ |
+| `Super+Ctrl+Z` / `+Alt+Z` | Zoom / resetar zoom | `Alt+Super+=`, `Alt+Super+8` | `Super+Ctrl+Z` amplia a lupa (`+Alt+Z` inalterado) | 🔁 |
 | `Super+,` (+`Shift`/`Ctrl`/`Alt`) | Dispensar/silenciar/invocar notificações | — | — | ⛔ |
-| `Super+Shift+Alt+,` | Histórico de notificações | `Super+V`/`Super+M` | `Super+Shift+Alt+,` (bandeja) | 🔁 |
+| `Super+Shift+Alt+,` | Histórico de notificações | `Super+V`/`Super+M` | inalterado | ➖ |
 | `Super+Backspace` (+`Shift`/`Ctrl`) | Transparência / gaps / aspecto | — | — | ⛔ |
 | `Super+Shift+Espaço` | Barra superior | `Shift+Super+Espaço` = fonte de entrada | inalterado | ⛔ |
 | `Super+Ctrl+I`, `Super+Ctrl+R`, `Super+Ctrl+S`, `Super+/` … | Idle, lembretes, compartilhar, escala | — | — | ⛔ |
@@ -155,12 +150,12 @@ Legenda: ✅ igual · 🔁 equivalente aproximado (função análoga) · ➕ nov
 | Omarchy | Função | Antes | Depois | |
 |---|---|---|---|---|
 | `Super+Enter` | Terminal | `Ctrl+Alt+T`, `Ctrl+Alt+Enter` (mantidos) | + `Super+Enter` | ➕ |
-| `Super+Alt+Enter` | Terminal + tmux | — | `xdg-terminal-exec tmux` | ➕ |
+| `Super+Alt+Enter` | Terminal + tmux | — | inalterado | ➖ |
 | `Super+Shift+Enter` / `Super+Shift+B` | Navegador | — | navegador padrão (`xdg-mime`) | ➕ |
 | `Super+Shift+F` | Gerenciador de arquivos | `Super+E` (mantido) | + `Super+Shift+F` | ➕ |
 | `Super+Shift+N` | Editor | — | `nvim` no terminal | ➕ |
 | `Super+Shift+/` | Senhas (1Password) | — | KeePassXC | 🔁 |
-| `Super+Shift+A/Y/X/G/P/S…` | Webapps (ChatGPT, YouTube, X, Maps…) | — | um item cada, desligados por padrão | ➕ |
+| `Super+Shift+A/Y/X/G/P/S…` | Webapps (ChatGPT, YouTube, X, Maps…) | — | inalterado | ➖ |
 | `Super+Shift+D/M/O/W/C/E` | Docker, música, Obsidian, Hey… | — | — (apps do Omarchy) | ⛔ |
 
 ### 3.5 Captura
@@ -168,7 +163,7 @@ Legenda: ✅ igual · 🔁 equivalente aproximado (função análoga) · ➕ nov
 | Omarchy | Função | Antes | Depois | |
 |---|---|---|---|---|
 | `Print` | Screenshot | UI de screenshot | idem | ⚙️ |
-| `Alt+Print` | Gravar tela | screenshot de janela | UI de gravação (`Alt+Print`); janela → `Shift+Alt+Print` | ✅ |
+| `Alt+Print` | Gravar tela | screenshot de janela | inalterado | ➖ |
 | `Super+Print` / `Super+Ctrl+Print` | Seletor de cor / OCR | — | — | ⛔ |
 | `Super+Ctrl+C` | Menu de captura | — | — (use `Print`) | ⛔ |
 
@@ -192,9 +187,9 @@ próxima/anterior; no GNOME o passo fino é `Shift+Volume` e `Alt+Volume` é
 
 | Omarchy | Função | Antes | Depois |
 |---|---|---|---|
-| `Shift+Insert` / `Ctrl+Insert` | Colar / copiar | — | ✅ (bloco gerenciado em `config.ghostty`) |
-| `Shift+Enter`, `Alt+Shift+Enter` | Enviam CSI‑u (TUIs distinguem `Shift+Enter`; tmux casa `M-S-Enter`) | — | ✅ |
-| `Super+Ctrl+Shift+Alt+setas` | Redimensionar split | — | ✅ |
+| `Shift+Insert` / `Ctrl+Insert` | Colar / copiar | — | inalterado ➖ |
+| `Shift+Enter`, `Alt+Shift+Enter` | Enviam CSI‑u (TUIs distinguem `Shift+Enter`; tmux casa `M-S-Enter`) | — | inalterado ➖ |
+| `Super+Ctrl+Shift+Alt+setas` | Redimensionar split | — | inalterado ➖ |
 | `F11` | (Bluefin) tela cheia | `F11` | mantido |
 
 ## 4. Divergências deliberadas (não replicadas)
@@ -220,17 +215,16 @@ just configure                     # ligar/desligar a feature (desligar desfaz t
 ```
 
 A feature vem **desligada** (opt-in), porque muda os atalhos da sessão
-inteira. Ligada, `just configure` pergunta, grupo a grupo (Janelas, Tiling
-Shell, Workspaces, Shell, Captura, Aplicativos, Painéis, Webapps, Ghostty),
-quais atalhos aplicar; as escolhas ficam na chave `omarchy-keybindings` de
-`~/.config/bluefin-dakota-setup/features.yml`, e o que nunca foi escolhido
-segue o `default` do item (todos ligados, menos os webapps).
+inteira. Ligada, `just configure` pergunta, grupo a grupo (Janelas, Aplicativos,
+Utilitários), quais atalhos aplicar; as escolhas ficam na chave
+`omarchy-keybindings` de `~/.config/bluefin-dakota-setup/features.yml`, e o
+que nunca foi escolhido segue o `default` do item (todos ligados). Itens que
+saíram do catálogo voltam ao original no próximo `just user`.
 
 `just apply omarchy-keybindings` aplica sem mexer nas escolhas, mas, com a
 feature desligada, o próximo `just user` desfaz (ela reverte).
 
-O catálogo (um item por atalho: chaves, comandos, `check`s, linhas do
-Ghostty) está em `playbooks/files/omarchy-keybindings.vars.yml`; o motor
-idempotente em `playbooks/files/omarchy-keybindings-apply.py`. Reaplicar é
-seguro (a 2ª execução não muda nada). Os atalhos do Tiling Shell e do Dash
-to Dock exigem as extensões instaladas; sem elas, são pulados.
+O catálogo (um item por atalho: chaves, comandos, `check`s) está em
+`playbooks/files/omarchy-keybindings.vars.yml`; o motor idempotente em
+`playbooks/files/omarchy-keybindings-apply.py`. Reaplicar é seguro (a 2ª
+execução não muda nada).
