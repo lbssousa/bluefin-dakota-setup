@@ -65,7 +65,7 @@ user: _ensure-collections
 
 # Aplicar só as features dadas (ids de features.yml), nas duas fases (a
 # metade de sistema precisa de um administrador), mesmo as desligadas nas
-# suas escolhas. Ex.: `just apply capslock`, `just apply libfprint`.
+# suas escolhas. Ex.: `just apply capslock`, `just apply printer`.
 apply +IDS: _ensure-collections
     #!/usr/bin/env bash
     set -euo pipefail

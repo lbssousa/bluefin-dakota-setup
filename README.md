@@ -55,7 +55,6 @@ ficam no PATH de todo mundo.
   `community.general` e o `gum` são instalados pelo `just` quando faltam.
 - Para o VSCode e o Emacs: o snapd já provisionado (o Dakota não o traz; sem
   ele, essas features avisam e pulam).
-- Para o libfprint: `distrobox` (vem na imagem).
 
 ### Privilégio: run0 --empower
 
@@ -123,7 +122,9 @@ o regera). Os playbooks são idempotentes — rodar de novo é seguro.
   as fases e, nas features com **revert**, a reversão ao desligar (Caps Lock,
   trava do KeePassXC, KeePassXC-Browser e autostart, Proton Pass, ssh-askpass,
   atalhos no estilo Omarchy, libfprint).
-- O libfprint deixou de ser standalone: é a feature opt-in `libfprint`.
+- O libfprint goodix538d não é mais compilado aqui: vem nas imagens do
+  Dakota. A play `libfprint` só remove o que instalações antigas deixaram em
+  `/usr/local`.
 - A configuração do kanata é da máquina, em `/etc/kanata/kanata.kbd`
   (gerenciada), não mais o `~/.config/kanata/kanata.kbd` do administrador.
 - A trava do KeePassXC tranca as bases de **toda** sessão aberta, não só a de

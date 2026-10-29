@@ -183,10 +183,11 @@ features:
   - id: libfprint
     group: hardware
     title: Leitor de digitais Goodix 538d
-    effect: adds o libfprint goodix538d em /usr/local (compilado num distrobox), a regra udev e um drop-in do fprintd.service
+    effect: removes o libfprint goodix538d de /usr/local, a regra udev e o drop-in do fprintd.service deixados por instalações antigas (o libfprint agora vem na imagem do Dakota)
     phases: [system]
     default: false
     revert: true
+    hidden: true
 
   - id: printer
     group: hardware

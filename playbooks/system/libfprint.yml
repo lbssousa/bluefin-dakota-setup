@@ -8,12 +8,13 @@
 # matcher SIGFM do fork é C puro (sem OpenCV): nenhuma dependência de
 # runtime fora do sistema.
 #
-# Opt-in (features.yml): só faz sentido em máquinas com esse leitor.
-# Desligada (revert), remove o que uma instalação anterior deixou em
-# /usr/local, a regra udev e o drop-in — e não faz nada se não houver
-# instalação.
-#
-# Uso: just apply libfprint
+# DESABILITADO: o fork agora vem nas imagens do Dakota. A instalação nunca
+# roda (feature_on fixo em false) e a feature é hidden em features.yml, então
+# esta play roda sempre e só remove o que uma instalação anterior deixou em
+# /usr/local, a regra udev e o drop-in — que fariam o fprintd carregar o
+# build antigo em vez do da imagem. Não faz nada se não houver instalação.
+# Para reabilitar, volte feature_on para features['libfprint'] e tire o
+# hidden do catálogo.
 - name: libfprint goodix538d — build em distrobox + instalação em /usr/local
   hosts: localhost
   connection: local
@@ -22,7 +23,8 @@
   tags: [libfprint]
 
   vars:
-    feature_on: "{{ features['libfprint'] | default(false) }}"
+    # Desabilitado: o libfprint goodix538d vem na imagem do Dakota.
+    feature_on: false
     libfprint_files:
       - "{{ libfprint_usrlocal_libdir }}/libfprint-2.so.2.0.0"
       - "{{ libfprint_usrlocal_libdir }}/libfprint-2.so.2"

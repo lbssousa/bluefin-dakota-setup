@@ -46,7 +46,7 @@
 - name: systemd-boot sem menu
   ansible.builtin.import_playbook: playbooks/system/systemd-boot.yml
 
-- name: libfprint goodix538d (opt-in)
+- name: "libfprint goodix538d: só remove instalações antigas (vem na imagem)"
   ansible.builtin.import_playbook: playbooks/system/libfprint.yml
 
 - name: EPSON L4160 (opt-in)

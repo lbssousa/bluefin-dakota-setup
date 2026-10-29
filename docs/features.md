@@ -59,7 +59,6 @@ desfaz na próxima execução; senão, desligar só para de gerenciar.
 | Feature | Tag | Efeito | Fases | Padrão | Reverte |
 |---|---|---|---|---|---|
 | systemd-boot sem menu | `systemd-boot` | modifies o loader.conf da ESP (timeout 0, console-mode keep, editor no); removes a variável EFI LoaderConfigTimeout | system | ligada | não |
-| Leitor de digitais Goodix 538d | `libfprint` | adds o libfprint goodix538d em /usr/local (compilado num distrobox), a regra udev e um drop-in do fprintd.service | system | desligada | sim |
 | Impressora EPSON L4160 | `printer` | adds a fila CUPS driverless da L4160 como impressora padrão | system | desligada | não |
 
 ## Extras (opt-in)
