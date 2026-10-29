@@ -221,9 +221,21 @@ ssh_askpass_require: prefer
 ssh_askpass_conf: "{{ target_home }}/.config/environment.d/30-ssh-askpass.conf"
 
 # Atalhos no estilo Omarchy (playbooks/user/omarchy-keybindings.yml).
-omarchy_keybindings_state_dir: "{{ target_xdg_data_home }}/bluefin-dakota-setup/keybindings-backup"
-# Onde o bluefin-initial-setup guardava o backup; reaproveitado se existir.
-omarchy_keybindings_legacy_state_dir: "{{ target_xdg_data_home }}/bluefin-initial-setup/keybindings-backup"
+# Os valores originais de cada chave que os atalhos escolhidos mudaram.
+omarchy_keybindings_state: "{{ target_xdg_data_home }}/bluefin-dakota-setup/omarchy-keybindings.json"
+# Backups dconf de versões anteriores (desta e do bluefin-initial-setup):
+# restaurados e apagados na próxima execução.
+omarchy_keybindings_legacy_backups:
+  - "{{ target_xdg_data_home }}/bluefin-dakota-setup/keybindings-backup"
+  - "{{ target_xdg_data_home }}/bluefin-initial-setup/keybindings-backup"
+omarchy_legacy_backup_paths:
+  - /org/gnome/desktop/wm/keybindings/
+  - /org/gnome/desktop/wm/preferences/
+  - /org/gnome/mutter/
+  - /org/gnome/shell/keybindings/
+  - /org/gnome/settings-daemon/plugins/media-keys/
+  - /org/gnome/shell/extensions/tilingshell/
+  - /org/gnome/shell/extensions/dash-to-dock/
 omarchy_ghostty_conf: "{{ target_xdg_config_home }}/ghostty/config.ghostty"
 
 # Google Drive montado via rclone (playbooks/{system,user}/rclone-gdrive.yml).

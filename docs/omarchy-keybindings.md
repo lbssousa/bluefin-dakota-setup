@@ -5,7 +5,8 @@ GNOME Shell 51 + extensões) e os atalhos padrão do
 [Omarchy](https://github.com/omacom/omarchy) v4 (Hyprland), mais a estratégia
 e a automação (feature `omarchy-keybindings`,
 `playbooks/user/omarchy-keybindings.yml`) que aproximam o primeiro
-do segundo.
+do segundo. Cada linha ✅/🔁/➕ das tabelas abaixo é um item que você liga ou
+desliga à parte em `just configure` (ou `just configure-keybindings`).
 
 - **Fonte do Omarchy:** `default/hypr/bindings/{tiling,utilities,applications,media,clipboard}.lua`
   e `config/ghostty/config`, branch `quattro` (release v4.0.4, 2026‑09‑15).
@@ -61,26 +62,31 @@ Tiling Shell desliga `maximize`/`unmaximize` (`Super+↑/↓`) e `toggle-tiled-*
 2. **Usar o Tiling Shell para o que o GNOME não tem** (foco direcional, trocar
    janelas de posição, float/tile ≈ *untile*). Funciona só com a extensão
    habilitada; sem ela as chaves ficam inertes.
-3. **Atalhos de apps/painéis viram *custom keybindings*** (`omarchy-*`), sem
-   tocar nos seus `custom0…6`. Cada um tem um `check` (o atalho é pulado se o
+3. **Atalhos de apps/painéis viram *custom keybindings*** (`omarchy-<id>`), sem
+   tocar nos seus `customN` (um `customN` com o mesmo atalho gera um aviso). Cada um tem um `check` (o atalho é pulado se o
    app não estiver instalado). Painéis do Omarchy (`Super+Ctrl+A/B/W/D/P`)
    viram `gnome-control-center <painel>`.
-4. **Resolver colisões antes de atribuir.** O GNOME aceita o mesmo atalho em
-   duas ações e o resultado é imprevisível. Colisões tratadas:
-   `Super+1…9` (dash/Shell e Dash to Dock) → workspaces; `Super+Q` (Dash to
-   Dock) → fechar; `Super+Shift+←↑→↓` (monitor) → `Super+Shift+Alt+…`;
-   `Super+L` → `Super+Ctrl+L`; `Super+A` → `Super+Alt+Espaço`;
-   `Super+O` (rotação de tela) → pin; `Alt+Print` (screenshot de janela) →
-   `Shift+Alt+Print`; `Super+Tab` (apps) → próximo workspace.
+4. **Resolver colisões automaticamente.** O GNOME aceita o mesmo atalho em
+   duas ações e o resultado é imprevisível. Cada atalho escolhido é
+   acrescentado à sua ação e tirado de qualquer outra chave dos schemas do
+   wm, mutter, Shell, media-keys, Tiling Shell e Dash to Dock — o resto da
+   chave fica. Exemplos: `Super+1…0` sai dos apps do dash e do Dash to Dock;
+   `Super+Q` sai do Dash to Dock; `Super+Espaço` sai da troca de fonte de
+   entrada; `Super+O` sai da trava de rotação; `Alt+Print` sai do screenshot
+   de janela; `Super+Tab` sai de alternar apps. Só o que não é colisão é
+   explícito no catálogo (`Super+L` deixa de bloquear).
 5. **Workspaces fixos.** O Omarchy tem 10 workspaces; `Super+N` leva ao N mesmo
    vazio. Para isso o GNOME precisa de workspaces estáticos
-   (`dynamic-workspaces=false`, `num-workspaces=10`). Desligável com
-   `-e omarchy_keys_static_workspaces=false`.
+   (`dynamic-workspaces=false`, `num-workspaces=10`), que vêm com os itens
+   `Super+1…0` e `Super+Shift+1…0`: sem os dois, os workspaces voltam a ser
+   dinâmicos.
 6. **O que não tem equivalente fica como está** (tabela 4) — não se rouba um
    atalho do GNOME para uma função que não existe.
-7. **Reversível.** Backup dconf dos caminhos tocados na 1ª execução;
-   desligar a feature (`just configure`) restaura o backup no próximo
-   `just user`. **Simulável:**
+7. **Reversível, chave a chave.** O valor original de cada chave tocada fica em
+   `~/.local/share/bluefin-dakota-setup/omarchy-keybindings.json`, e o valor
+   aplicado é sempre recalculado a partir dele: desmarcar um item devolve ao
+   original as chaves que só ele mudava; desligar a feature desmarca todos.
+   O resto do dconf não é tocado. **Simulável:**
    `just omarchy-keybindings-dry-run` mostra cada `de → para` sem gravar.
 
 ## 3. Comparação por grupo
@@ -117,7 +123,7 @@ Legenda: ✅ igual · 🔁 equivalente aproximado (função análoga) · ➕ nov
 | `Super+Shift+Alt+1…0` | Mover sem seguir | — | — | ⛔ |
 | `Super+Tab` / `Super+Shift+Tab` | Próximo / anterior workspace | alternar **apps** | próximo / anterior workspace | ✅ |
 | `Super+Ctrl+Tab` | Workspace anterior (histórico) | — | — | ⛔ |
-| `Alt+Tab` / `Alt+Shift+Tab` | Próxima / anterior janela | idem | idem | ⚙️ |
+| `Alt+Tab` / `Alt+Shift+Tab` | Próxima / anterior janela | próximo / anterior **app** | próxima / anterior janela (`switch-windows`) | ✅ |
 | `Ctrl+Alt+Tab` | Foco no próximo monitor | foco nos painéis (a11y) | inalterado | ⛔ |
 | `Super+S`, `Super+\`` | Scratchpad | `Super+S` = config. rápidas | inalterado | ⛔ |
 | `Super+scroll` | Rolar workspaces | — | — | ⛔ |
@@ -126,8 +132,8 @@ Legenda: ✅ igual · 🔁 equivalente aproximado (função análoga) · ➕ nov
 
 | Omarchy | Função | Antes | Depois | |
 |---|---|---|---|---|
-| `Super+Espaço` | Menu Omarchy / launcher | — | Visão geral (`toggle-overview`) | 🔁 |
-| `Super+Alt+Espaço` | Menu de apps | `Super+A` = grade de apps | grade de apps | 🔁 |
+| `Super+Espaço` | Menu Omarchy / launcher | trocar fonte de entrada | Visão geral (`toggle-overview`) | 🔁 |
+| `Super+Alt+Espaço` | Menu de apps | `Super+A` = grade de apps | grade de apps (`Super+A` continua) | 🔁 |
 | `Super+Esc` | Menu do sistema | restaurar atalhos (Wayland) | inalterado (necessário em VMs/RDP) | ⛔ |
 | `Super+K` (+`Alt`/`Ctrl`) | Lista de atalhos | — | — (este documento) | ⛔ |
 | `Super+Ctrl+Q` | Calculadora | — | Calculadora | ➕ |
@@ -154,7 +160,7 @@ Legenda: ✅ igual · 🔁 equivalente aproximado (função análoga) · ➕ nov
 | `Super+Shift+F` | Gerenciador de arquivos | `Super+E` (mantido) | + `Super+Shift+F` | ➕ |
 | `Super+Shift+N` | Editor | — | `nvim` no terminal | ➕ |
 | `Super+Shift+/` | Senhas (1Password) | — | KeePassXC | 🔁 |
-| `Super+Shift+A/Y/X/G/P/S…` | Webapps (ChatGPT, YouTube, X, Maps…) | — | opt‑in: `-e omarchy_keys_webapps=true` | ➕ |
+| `Super+Shift+A/Y/X/G/P/S…` | Webapps (ChatGPT, YouTube, X, Maps…) | — | um item cada, desligados por padrão | ➕ |
 | `Super+Shift+D/M/O/W/C/E` | Docker, música, Obsidian, Hey… | — | — (apps do Omarchy) | ⛔ |
 
 ### 3.5 Captura
@@ -179,7 +185,7 @@ próxima/anterior; no GNOME o passo fino é `Shift+Volume` e `Alt+Volume` é
 
 | Omarchy | Função | GNOME | |
 |---|---|---|---|
-| `Super+C` / `Super+V` / `Super+X` / `Super+A` | Cópia/colagem/recorte/selecionar tudo "universais" (injeta `Ctrl`/`Ctrl+Shift` no app em foco) | ⛔ — o GNOME Shell não injeta teclas em apps. `Super+V` segue como bandeja de notificações e `Super+A`, grade de apps (→ `Super+Alt+Espaço`, pois `Super+A` ficaria sem função) | ⛔ |
+| `Super+C` / `Super+V` / `Super+X` / `Super+A` | Cópia/colagem/recorte/selecionar tudo "universais" (injeta `Ctrl`/`Ctrl+Shift` no app em foco) | ⛔ — o GNOME Shell não injeta teclas em apps. `Super+V` segue como bandeja de notificações e `Super+A`, grade de apps (que também ganha `Super+Alt+Espaço`) | ⛔ |
 | `Super+Ctrl+V` | Gerenciador de clipboard | — | ⛔ |
 
 ### 3.8 Terminal (Ghostty)
@@ -208,20 +214,23 @@ próxima/anterior; no GNOME o passo fino é `Shift+Volume` e `Alt+Volume` é
 ## 5. Uso
 
 ```bash
+just configure-keybindings         # escolher os atalhos, um a um (e aplicar)
 just omarchy-keybindings-dry-run   # mostra as mudanças, não grava
-just configure                     # ligar (ou desligar: restaura o backup) e aplicar
+just configure                     # ligar/desligar a feature (desligar desfaz tudo)
 ```
+
+A feature vem **desligada** (opt-in), porque muda os atalhos da sessão
+inteira. Ligada, `just configure` pergunta, grupo a grupo (Janelas, Tiling
+Shell, Workspaces, Shell, Captura, Aplicativos, Painéis, Webapps, Ghostty),
+quais atalhos aplicar; as escolhas ficam na chave `omarchy-keybindings` de
+`~/.config/bluefin-dakota-setup/features.yml`, e o que nunca foi escolhido
+segue o `default` do item (todos ligados, menos os webapps).
 
 `just apply omarchy-keybindings` aplica sem mexer nas escolhas, mas, com a
 feature desligada, o próximo `just user` desfaz (ela reverte).
 
-Opções (`-e`): `omarchy_keys_webapps=true` · `omarchy_keys_static_workspaces=false`
-· `omarchy_dry_run=true`. Os dados (atalhos, comandos, `check`s) estão em
-`playbooks/files/omarchy-keybindings.vars.yml`; o motor idempotente em
-`playbooks/files/omarchy-keybindings-apply.py`. A feature vem **desligada**
-(opt-in), porque muda os atalhos da sessão inteira.
-
-Depois de aplicar, o estado final foi checado por script: nenhum atalho
-duplicado entre schemas GNOME, Tiling Shell, Dash to Dock e custom keybindings.
-Reaplicar é seguro (a 2ª execução não muda nada). Os atalhos do Tiling Shell
-e do Dash to Dock exigem as extensões instaladas; sem elas, são pulados.
+O catálogo (um item por atalho: chaves, comandos, `check`s, linhas do
+Ghostty) está em `playbooks/files/omarchy-keybindings.vars.yml`; o motor
+idempotente em `playbooks/files/omarchy-keybindings-apply.py`. Reaplicar é
+seguro (a 2ª execução não muda nada). Os atalhos do Tiling Shell e do Dash
+to Dock exigem as extensões instaladas; sem elas, são pulados.

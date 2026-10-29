@@ -4,23 +4,21 @@
 # Comparação completa, estratégia e o que não tem equivalente no GNOME:
 # docs/omarchy-keybindings.md.
 #
-# Ligada:
-#   1. Salva um backup dconf dos caminhos tocados (só na 1ª vez, em
-#      omarchy_keybindings_state_dir).
-#   2. Aplica os atalhos de files/omarchy-keybindings.vars.yml via
-#      files/omarchy-keybindings-apply.py (idempotente: só grava o que
-#      difere) — atalhos nativos, Tiling Shell, workspaces fixos SUPER+1..0,
-#      limpeza de colisões (Dash to Dock, SUPER+1..9 do Shell) e atalhos
-#      customizados (apps/painéis) em custom-keybindings/omarchy-*, sem
-#      tocar nos customN existentes.
-#   3. Bloco gerenciado com os keybinds do Omarchy no Ghostty.
-# Desligada (revert): se houver backup, restaura-o, apaga-o e tira o bloco
-# do Ghostty.
+# Atalho a atalho: o catálogo é files/omarchy-keybindings.vars.yml e a
+# escolha de cada item é feita em `just configure` (ou só a dos atalhos, em
+# `just configure-keybindings`); scripts/features.py passa os itens ligados
+# em omarchy_keybindings_selected (vazio com a feature desligada).
 #
-# Opt-in (features.yml): muda os atalhos da sessão inteira.
-#   Simular:              just omarchy-keybindings-dry-run
-#   Webapps:              -e omarchy_keys_webapps=true
-#   Sem workspaces fixos: -e omarchy_keys_static_workspaces=false
+#   1. files/omarchy-keybindings-apply.py aplica os itens escolhidos
+#      (idempotente: só grava o que difere), tirando cada atalho de qualquer
+#      outra ação que o use, e devolve ao original cada chave que nenhum item
+#      escolhido toca mais (valores originais em omarchy_keybindings_state).
+#      Atalhos customizados em custom-keybindings/omarchy-*, sem tocar nos
+#      customN existentes.
+#   2. Bloco gerenciado no Ghostty com as linhas dos itens escolhidos.
+# Desligada: nenhum item, ou seja, tudo volta ao original.
+#
+# Simular: just omarchy-keybindings-dry-run
 #
 # Os atalhos valem na hora; os do Tiling Shell/Dash to Dock só com a
 # extensão instalada.
@@ -35,76 +33,62 @@
 
   vars:
     feature_on: "{{ features['omarchy-keybindings'] | default(false) }}"
+    omarchy_selected: "{{ omarchy_keybindings_selected | default([]) if feature_on | bool else [] }}"
+    omarchy_items: "{{ omarchy_keybindings | selectattr('id', 'in', omarchy_selected) | list }}"
     omarchy_dry_run: false
     omarchy_dry: "{{ omarchy_dry_run | bool }}"
-    # SUPER+1..0 -> workspace N; SUPER+SHIFT+1..0 -> mover janela para N
-    omarchy_workspace_keys: "{{ ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] }}"
     omarchy_ghostty_marker: "# {mark} omarchy-keybindings (playbooks/omarchy-keybindings.yml)"
 
   tasks:
-    # O bluefin-initial-setup guardava o backup em outro lugar; ele é o
-    # estado original de verdade, então é adotado.
-    - name: Procurar um backup do bluefin-initial-setup
+    # Versões anteriores guardavam um dump dconf inteiro e o restauravam ao
+    # desligar; ele é o estado de antes de qualquer atalho do Omarchy, então
+    # é restaurado (e apagado) antes de o motor registrar os originais.
+    - name: Procurar backups dconf de versões anteriores
       ansible.builtin.stat:
-        path: "{{ omarchy_keybindings_legacy_state_dir }}"
-      register: omarchy_legacy_backup
+        path: "{{ item }}"
+      loop: "{{ omarchy_keybindings_legacy_backups }}"
+      register: omarchy_legacy
 
-    - name: Adotar o backup do bluefin-initial-setup
-      ansible.builtin.command:
-        argv: [mv, "{{ omarchy_keybindings_legacy_state_dir }}", "{{ omarchy_keybindings_state_dir }}"]
-        creates: "{{ omarchy_keybindings_state_dir }}"
-      when: omarchy_legacy_backup.stat.exists and not omarchy_dry | bool
+    - name: Restaurar e apagar os backups dconf de versões anteriores
+      ansible.builtin.shell: |
+        set -eu
+        d={{ item.item | quote }}
+        {% for p in omarchy_legacy_backup_paths %}
+        f="$d/{{ p | regex_replace('[^A-Za-z0-9]+', '_') }}.ini"
+        dconf reset -f {{ p | quote }}
+        if [ -s "$f" ]; then dconf load {{ p | quote }} < "$f"; fi
+        {% endfor %}
+        rm -rf "$d"
+      args:
+        executable: /bin/bash
+      loop: "{{ omarchy_legacy.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      changed_when: true
+      when: item.stat.exists and not omarchy_dry | bool
 
+    - name: Procurar o estado dos atalhos
+      ansible.builtin.stat:
+        path: "{{ omarchy_keybindings_state }}"
+      register: omarchy_state
+
+    # Com a feature desligada e nada aplicado, não há o que fazer (nem
+    # sessão gráfica a exigir).
     - name: Atalhos no estilo Omarchy
-      when: feature_on | bool
+      when: >-
+        feature_on | bool or omarchy_state.stat.exists
+        or omarchy_legacy.results | selectattr('stat.exists') | list | length > 0
       block:
         - name: Conferir o gsettings e a sessão
           ansible.builtin.command: gsettings get org.gnome.desktop.wm.keybindings close
           changed_when: false
 
-        - name: Backup dconf dos caminhos de atalhos (só se ainda não existir)
-          ansible.builtin.shell: |
-            set -eu
-            d={{ omarchy_keybindings_state_dir | quote }}
-            [ -d "$d" ] && exit 0
-            mkdir -p "$d"
-            {% for p in omarchy_backup_paths %}
-            dconf dump {{ p | quote }} > "$d/{{ p | regex_replace('[^A-Za-z0-9]+', '_') }}.ini"
-            {% endfor %}
-            echo created
-          args:
-            executable: /bin/bash
-          register: omarchy_backup
-          changed_when: omarchy_backup.stdout == 'created'
-          when: not omarchy_dry | bool
-
-        - name: Montar a lista de chaves desejadas
-          ansible.builtin.set_fact:
-            omarchy_all_settings: >-
-              {{ omarchy_gsettings
-                 + omarchy_dash_to_dock
-                 + ([ {'schema': 'org.gnome.mutter', 'key': 'dynamic-workspaces', 'value': 'false'},
-                      {'schema': 'org.gnome.desktop.wm.preferences', 'key': 'num-workspaces', 'value': omarchy_workspace_count | string} ]
-                    if omarchy_keys_static_workspaces | bool else [])
-                 + (omarchy_ws_switch + omarchy_ws_move if omarchy_keys_static_workspaces | bool else [])
-                 + (omarchy_shell_apps_clear if omarchy_shell_app_hotkeys_clear | bool else []) }}
-            omarchy_all_custom: >-
-              {{ omarchy_custom_keybindings
-                 + (omarchy_webapp_entries if omarchy_keys_webapps | bool else []) }}
-          vars:
-            omarchy_ws_switch: >-
-              {% set out = [] %}{% for k in omarchy_workspace_keys %}{% set _ = out.append({'schema': 'org.gnome.desktop.wm.keybindings', 'key': 'switch-to-workspace-' ~ (10 if k == '0' else k), 'value': (['<Super>' ~ k] + (['<Super>Home'] if k == '1' else []))}) %}{% endfor %}{{ out }}
-            omarchy_ws_move: >-
-              {% set out = [] %}{% for k in omarchy_workspace_keys %}{% set _ = out.append({'schema': 'org.gnome.desktop.wm.keybindings', 'key': 'move-to-workspace-' ~ (10 if k == '0' else k), 'value': (['<Super><Shift>' ~ k] + (['<Super><Shift>Home'] if k == '1' else []))}) %}{% endfor %}{{ out }}
-            omarchy_shell_apps_clear: >-
-              {% set out = [] %}{% for i in range(1, 10) %}{% set _ = out.append({'schema': 'org.gnome.shell.keybindings', 'key': 'switch-to-application-' ~ i, 'value': []}) %}{% endfor %}{{ out }}
-            omarchy_webapp_entries: >-
-              {% set out = [] %}{% for w in omarchy_webapps %}{% set _ = out.append({'id': w.id, 'name': w.name, 'binding': w.binding, 'command': 'xdg-open ' ~ w.url}) %}{% endfor %}{{ out }}
-
-        - name: Aplicar (ou simular) os atalhos
+        - name: Aplicar (ou simular) os atalhos escolhidos
           ansible.builtin.command:
             cmd: python3 {{ (playbook_dir ~ '/files/omarchy-keybindings-apply.py') | quote }}
-            stdin: "{{ {'settings': omarchy_all_settings, 'custom': omarchy_all_custom, 'dry_run': omarchy_dry | bool} | to_json }}"
+            stdin: >-
+              {{ {'items': omarchy_items, 'scan': omarchy_scan_schemas,
+                  'state': omarchy_keybindings_state, 'dry_run': omarchy_dry | bool} | to_json }}
           register: omarchy_apply
           changed_when: (omarchy_apply.stdout | from_json).changes | length > 0
           check_mode: false
@@ -123,41 +107,18 @@
             var: omarchy_result.skipped
           when: omarchy_result.skipped | length > 0
 
-        - name: Ghostty — keybinds do Omarchy
+        - name: Avisos
+          ansible.builtin.debug:
+            var: omarchy_result.warnings
+          when: omarchy_result.warnings | length > 0
+
+        - name: Ghostty — keybinds do Omarchy escolhidos
           ansible.builtin.blockinfile:
             path: "{{ omarchy_ghostty_conf }}"
             marker: "{{ omarchy_ghostty_marker }}"
-            block: "{{ omarchy_ghostty_keybinds | join('\n') }}"
+            block: "{{ omarchy_ghostty_lines | join('\n') }}"
+            state: "{{ 'present' if omarchy_ghostty_lines else 'absent' }}"
+          vars:
+            omarchy_ghostty_lines: "{{ omarchy_items | selectattr('ghostty', 'defined') | map(attribute='ghostty') | flatten }}"
           when: not omarchy_dry | bool
-          failed_when: false
-
-    - name: Desfazer os atalhos no estilo Omarchy
-      when: not feature_on | bool
-      block:
-        - name: Procurar o backup dconf
-          ansible.builtin.stat:
-            path: "{{ omarchy_keybindings_state_dir }}"
-          register: omarchy_backup_dir
-
-        - name: Restaurar o backup dconf e apagá-lo
-          ansible.builtin.shell: |
-            set -eu
-            d={{ omarchy_keybindings_state_dir | quote }}
-            {% for p in omarchy_backup_paths %}
-            f="$d/{{ p | regex_replace('[^A-Za-z0-9]+', '_') }}.ini"
-            dconf reset -f {{ p | quote }}
-            if [ -s "$f" ]; then dconf load {{ p | quote }} < "$f"; fi
-            {% endfor %}
-            rm -rf "$d"
-          args:
-            executable: /bin/bash
-          changed_when: true
-          when: omarchy_backup_dir.stat.exists
-
-        - name: Ghostty — remover o bloco do Omarchy
-          ansible.builtin.blockinfile:
-            path: "{{ omarchy_ghostty_conf }}"
-            marker: "{{ omarchy_ghostty_marker }}"
-            state: absent
-          when: omarchy_backup_dir.stat.exists
           failed_when: false

@@ -15,6 +15,11 @@
 As escolhas ficam em $XDG_CONFIG_HOME/bluefin-dakota-setup/features.yml:
 
   features: {<id>: true|false, ...}
+  omarchy-keybindings: {<id do atalho>: true|false, ...}
+
+O segundo mapa escolhe, atalho a atalho, o que a feature omarchy-keybindings
+aplica (catálogo: playbooks/files/omarchy-keybindings.vars.yml); o que nunca
+foi escolhido segue o default do atalho.
 """
 import json
 import os
@@ -26,6 +31,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "features.yml"
+KEYS_CATALOG = ROOT / "playbooks" / "files" / "omarchy-keybindings.vars.yml"
+KEYS_FEATURE = "omarchy-keybindings"
 CHOICES = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "bluefin-dakota-setup" / "features.yml"
 # Tags que não são features: as plays que rodam sempre.
 STRUCTURAL_TAGS = {"always", "never"}
@@ -41,6 +48,18 @@ def load_choices():
         with open(CHOICES) as f:
             return yaml.safe_load(f) or {}
     return {}
+
+
+def load_keys():
+    with open(KEYS_CATALOG) as f:
+        data = yaml.safe_load(f)
+    return data["omarchy_keybinding_groups"], data["omarchy_keybindings"]
+
+
+def resolve_keys(keys, choices):
+    """Os atalhos ligados: defaults do catálogo sobrepostos pelas escolhas."""
+    chosen = choices.get(KEYS_FEATURE) or {}
+    return {k["id"]: bool(chosen.get(k["id"], k["default"])) for k in keys}
 
 
 def resolve(catalog, choices):
@@ -79,8 +98,11 @@ def cmd_resolve(phase, out):
     if errors:
         sys.exit("As escolhas não combinam:\n  " + "\n  ".join(errors) + "\nRode `just configure` para corrigir.")
     Path(out).parent.mkdir(parents=True, exist_ok=True)
+    _, keys = load_keys()
+    selected = [k for k, on in resolve_keys(keys, choices).items() if on] if features[KEYS_FEATURE] else []
     with open(out, "w") as f:
-        json.dump({"features_resolved": True, "features": features}, f, indent=2)
+        json.dump({"features_resolved": True, "features": features,
+                   "omarchy_keybindings_selected": selected}, f, indent=2)
     tags = ["always"]
     for f in catalog["features"]:
         if phase not in f["phases"]:
@@ -132,6 +154,21 @@ def cmd_check():
         if tag not in ids and tag not in STRUCTURAL_TAGS:
             problems.append(f"tag {tag} ({', '.join(sorted(where))}) não é uma feature de features.yml")
     problems += [f"defaults: {e}" for e in requirement_errors(catalog, resolve(catalog, {}))]
+    key_groups, keys = load_keys()
+    key_ids = [k.get("id") for k in keys]
+    if len(key_ids) != len(set(key_ids)):
+        problems.append("atalhos: ids duplicados")
+    for k in keys:
+        for field in ("id", "group", "title", "effect", "default"):
+            if field not in k:
+                problems.append(f"atalho {k.get('id', '?')}: falta {field}")
+        if k.get("group") not in key_groups:
+            problems.append(f"atalho {k.get('id')}: grupo desconhecido {k.get('group')}")
+        if not any(k.get(f) for f in ("bind", "set", "custom", "ghostty")):
+            problems.append(f"atalho {k.get('id')}: não faz nada (falta bind, set, custom ou ghostty)")
+    labels = [menu_label(k.get("title", "")) for k in keys]
+    if len(labels) != len(set(labels)):
+        problems.append("atalhos: títulos repetidos (o menu os distingue pelo título)")
     if problems:
         sys.exit("features.yml:\n  " + "\n  ".join(problems))
     print("Catálogo de features OK.")
@@ -173,8 +210,9 @@ def menu_label(text):
 
 
 def merged_choices(choices, new):
-    merged = {"features": dict(choices.get("features") or {})}
-    merged["features"].update(new.get("features", {}))
+    merged = {}
+    for section in ("features", KEYS_FEATURE):
+        merged[section] = {**(choices.get(section) or {}), **new.get(section, {})}
     return merged
 
 
@@ -195,9 +233,20 @@ def menu(args):
                 continue
             mark = " ⟲" if f["revert"] else ""
             print(f"{f['id']}\t{menu_label(f['title'] + mark)}\t{int(features[f['id']])}\t{f['effect']}")
+    elif what == "key-groups":
+        key_groups, keys = load_keys()
+        for group, title in key_groups.items():
+            if any(k["group"] == group for k in keys):
+                print(f"{group}\t{title}")
+    elif what == "keys":
+        _, keys = load_keys()
+        on = resolve_keys(keys, choices)
+        for k in keys:
+            if k["group"] == args[1]:
+                print(f"{k['id']}\t{menu_label(k['title'])}\t{int(on[k['id']])}\t{k['effect']}")
     elif what == "save":
-        # stdin: JSON {"features": {...}} (só o que o menu perguntou),
-        # mesclado ao arquivo de escolhas.
+        # stdin: JSON {"features": {...}, "omarchy-keybindings": {...}} (só
+        # o que o menu perguntou), mesclado ao arquivo de escolhas.
         merged = merged_choices(choices, json.load(sys.stdin))
         errors = requirement_errors(catalog, resolve(catalog, merged))
         if errors:
@@ -210,12 +259,20 @@ def menu(args):
     elif what == "summary":
         # stdin: o mesmo JSON do save; imprime o que muda em relação à
         # seleção resolvida atual.
-        after = resolve(catalog, merged_choices(choices, json.load(sys.stdin)))
+        merged = merged_choices(choices, json.load(sys.stdin))
+        after = resolve(catalog, merged)
         by_id = {f["id"]: f for f in catalog["features"]}
         for fid, on in after.items():
             if on != features[fid]:
                 verb = "ligar" if on else ("reverter" if by_id[fid]["revert"] else "parar de gerenciar")
                 print(f"- {verb}: {by_id[fid]['title']}")
+        _, keys = load_keys()
+        keys_before = resolve_keys(keys, choices) if features[KEYS_FEATURE] else {}
+        keys_after = resolve_keys(keys, merged) if after[KEYS_FEATURE] else {}
+        for k in keys:
+            was, now = keys_before.get(k["id"], False), keys_after.get(k["id"], False)
+            if was != now:
+                print(f"- {'ligar' if now else 'desfazer'} atalho: {k['title']}")
     else:
         sys.exit(f"consulta de menu desconhecida: {what}")
 

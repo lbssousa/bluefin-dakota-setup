@@ -36,7 +36,7 @@ desfaz na próxima execução; senão, desligar só para de gerenciar.
 | Feature | Tag | Efeito | Fases | Padrão | Reverte |
 |---|---|---|---|---|---|
 | Caps Lock via kanata | `capslock` | adds kanata (Homebrew) como serviço de sistema com /etc/kanata/kanata.kbd (toque = Esc, segurar = Ctrl, Shift+Caps Lock = Caps Lock) | system | ligada | sim |
-| Atalhos no estilo Omarchy | `omarchy-keybindings` | modifies os atalhos do GNOME (gsettings, Tiling Shell, Dash to Dock) e do Ghostty; desligar restaura o backup dconf | user | desligada | sim |
+| Atalhos no estilo Omarchy | `omarchy-keybindings` | modifies os atalhos do GNOME (gsettings, Tiling Shell, Dash to Dock) e do Ghostty, escolhidos um a um em seguida (just configure-keybindings); desmarcar um atalho, ou desligar, devolve o que ele mudou ao original | user | desligada | sim |
 
 ## Shell
 

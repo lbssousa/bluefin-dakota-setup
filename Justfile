@@ -40,6 +40,11 @@ _ensure-gum:
 configure: _ensure-gum _ensure-collections
     scripts/configure.sh
 
+# Só os atalhos no estilo Omarchy, um a um (liga a feature
+# omarchy-keybindings); oferece aplicá-los em seguida.
+configure-keybindings: _ensure-gum _ensure-collections
+    scripts/configure.sh keybindings
+
 # Tudo para a sua conta: a fase de sistema (precisa de um administrador;
 # autentique uma vez, no diálogo do polkit que aparece no início) e depois a
 # sua fase de usuário. Pergunta as suas escolhas antes, se você nunca fez.
@@ -84,7 +89,8 @@ apply +IDS: _ensure-collections
 users: _ensure-collections
     BLUEFIN_DAKOTA_SETUP_ENABLE=users scripts/run-phase.sh system system.yml --tags always,users
 
-# Mostrar o que os atalhos no estilo Omarchy mudariam, sem gravar nada.
+# Mostrar o que os atalhos no estilo Omarchy escolhidos mudariam, sem
+# gravar nada.
 omarchy-keybindings-dry-run: _ensure-collections
     BLUEFIN_DAKOTA_SETUP_ENABLE=omarchy-keybindings scripts/run-phase.sh user user.yml --tags always,omarchy-keybindings -e omarchy_dry_run=true
 

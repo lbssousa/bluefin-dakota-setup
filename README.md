@@ -84,6 +84,7 @@ Depois:
 
 ```bash
 just configure            # mudar as escolhas (e aplicá-las)
+just configure-keybindings  # só os atalhos no estilo Omarchy, um a um
 just setup                # fase de sistema e depois a sua de usuário
 just system | just user   # só uma fase
 just apply capslock zed   # só estas features, agora (mesmo desligadas)
@@ -132,8 +133,9 @@ o regera). Os playbooks são idempotentes — rodar de novo é seguro.
 - O e-mail do rclone e as contas adicionais saíram do repositório para o
   `local.yml`.
 - Migrações automáticas: o bloco antigo do pam_u2f, o
-  `bluefin-initial-setup.el` do Emacs e o backup dos atalhos do Omarchy são
-  trocados pelos novos na primeira execução.
+  `bluefin-initial-setup.el` do Emacs e o backup dconf dos atalhos do Omarchy
+  (restaurado; os atalhos são escolhidos de novo, um a um) são trocados
+  pelos novos na primeira execução.
 
 ## Estrutura
 
