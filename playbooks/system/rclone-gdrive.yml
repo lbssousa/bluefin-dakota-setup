@@ -1,0 +1,24 @@
+---
+# Google Drive via rclone, parte da máquina: o rclone do Homebrew. O
+# fusermount3 já vem no sistema base (fuse3). As montagens de cada pessoa
+# ficam em playbooks/user/rclone-gdrive.yml.
+#
+# Opt-in (features.yml).
+#
+# Uso: just apply rclone-gdrive
+- name: rclone (Homebrew)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [rclone-gdrive]
+
+  vars:
+    feature_on: "{{ features['rclone-gdrive'] | default(false) }}"
+
+  tasks:
+    - name: Instalar o rclone via Homebrew
+      community.general.homebrew:
+        name: rclone
+        path: "{{ homebrew_prefix }}/bin"
+        state: present
+      when: feature_on | bool

@@ -1,0 +1,120 @@
+---
+# Proton Pass CLI, parte de cada pessoa: um serviço systemd --user
+# (proton-pass-ssh-agent-load.service) que, no início da sessão, injeta as
+# chaves SSH do cofre no agente SSH JÁ ATIVO via `pass-cli ssh-agent load`
+# (protonpass.github.io/pass-cli/commands/ssh-agent/). O script espera até
+# proton_pass_ssh_agent_wait_seconds o socket do agente aparecer.
+#
+# Persistência após reboot: por padrão o pass-cli guarda a chave da sessão
+# no kernel keyring, zerado a cada boot; PROTON_PASS_LINUX_KEYRING=dbus
+# (~/.config/environment.d/25-proton-pass-keyring.conf) troca para o Secret
+# Service (GNOME Keyring), desbloqueado no login.
+#
+# Pré-requisito fora do escopo (interativo): `pass-cli login` uma vez, numa
+# sessão NOVA (logout/reboot) depois de aplicar, para a chave já nascer no
+# backend D-Bus. Sem isso o serviço não consegue rodar — a play avisa.
+#
+# Opt-in (features.yml). Desligada (revert), remove o serviço, o script e a
+# variável de ambiente; a sessão do pass-cli fica.
+#
+# Uso: just apply proton-pass
+- name: Proton Pass CLI — injeção das chaves SSH no agente ativo
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [proton-pass]
+
+  vars:
+    feature_on: "{{ features['proton-pass'] | default(false) }}"
+    proton_pass_unit_path: "{{ target_xdg_config_home }}/systemd/user/{{ proton_pass_ssh_agent_load_unit }}"
+
+  tasks:
+    - name: Serviço de injeção das chaves SSH
+      when: feature_on | bool
+      block:
+        - name: Garantir os diretórios
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: directory
+            mode: "0755"
+          loop:
+            - "{{ proton_pass_ssh_agent_load_script_dest | dirname }}"
+            - "{{ proton_pass_keyring_env_file | dirname }}"
+            - "{{ proton_pass_unit_path | dirname }}"
+
+        - name: Instalar o script que injeta as chaves no agente ativo
+          ansible.builtin.template:
+            src: proton-pass-ssh-agent-load.sh.j2
+            dest: "{{ proton_pass_ssh_agent_load_script_dest }}"
+            mode: "0755"
+          notify: restart proton-pass-ssh-agent-load
+
+        - name: Fixar o backend de keyring do pass-cli (D-Bus, sobrevive a reboot)
+          ansible.builtin.template:
+            src: 25-proton-pass-keyring.conf.j2
+            dest: "{{ proton_pass_keyring_env_file }}"
+            mode: "0644"
+
+        - name: Instalar o serviço systemd --user
+          ansible.builtin.template:
+            src: proton-pass-ssh-agent-load.service.j2
+            dest: "{{ proton_pass_unit_path }}"
+            mode: "0644"
+          notify:
+            - reload systemd --user
+            - restart proton-pass-ssh-agent-load
+
+        - name: Habilitar o serviço
+          ansible.builtin.systemd:
+            name: "{{ proton_pass_ssh_agent_load_unit }}"
+            scope: user
+            daemon_reload: true
+            enabled: true
+            state: started
+          register: proton_pass_service_start
+          failed_when: false
+
+        # Não falha a fase: o serviço fica habilitado e inicia sozinho no
+        # próximo login válido. A causa provável é a falta de `pass-cli
+        # login` (ou uma sessão antiga no kernel keyring, invalidada pelo
+        # próprio pass-cli na troca de backend) — a correção é a mesma.
+        - name: Avisar se o serviço não iniciou (provável falta de `pass-cli login`)
+          ansible.builtin.debug:
+            msg: >-
+              {{ proton_pass_ssh_agent_load_unit }} não iniciou —
+              provavelmente falta `pass-cli login`. Rode-o agora
+              (PROTON_PASS_LINUX_KEYRING=dbus já vale nesta sessão) e depois
+              `systemctl --user restart {{ proton_pass_ssh_agent_load_unit }}`.
+          when: proton_pass_service_start is failed
+
+    - name: Remover o serviço de injeção das chaves SSH
+      when: not feature_on | bool
+      block:
+        - name: Parar e desabilitar o serviço
+          ansible.builtin.systemd:
+            name: "{{ proton_pass_ssh_agent_load_unit }}"
+            scope: user
+            state: stopped
+            enabled: false
+          failed_when: false
+
+        - name: Remover o serviço, o script e a variável de ambiente
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ proton_pass_unit_path }}"
+            - "{{ proton_pass_ssh_agent_load_script_dest }}"
+            - "{{ proton_pass_keyring_env_file }}"
+          notify: reload systemd --user
+
+  handlers:
+    - ansible.builtin.import_tasks: tasks/handlers-user.yml
+
+    - name: restart proton-pass-ssh-agent-load
+      ansible.builtin.systemd:
+        name: "{{ proton_pass_ssh_agent_load_unit }}"
+        scope: user
+        state: restarted
+      failed_when: false
+      listen: restart proton-pass-ssh-agent-load

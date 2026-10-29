@@ -1,0 +1,11 @@
+# Gerado pelo bluefin-dakota-setup (feature proton-pass) — não editar à mão, as mudanças
+# seriam sobrescritas na próxima execução.
+#
+# Lido pelo systemd --user na inicialização da sessão (systemd.environment-generator(7))
+# e exportado para toda a sessão gráfica (terminais, IDEs e o serviço
+# proton-pass-ssh-agent-load.service inclusos) — faz o pass-cli usar o
+# Secret Service via D-Bus (GNOME Keyring) em vez do kernel keyring
+# como backend da chave de sessão, já que o kernel keyring é zerado a
+# cada reboot. Veja o comentário de proton_pass_linux_keyring em
+# group_vars/all/main.yml.
+PROTON_PASS_LINUX_KEYRING={{ proton_pass_linux_keyring }}

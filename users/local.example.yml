@@ -1,0 +1,16 @@
+---
+# Modelo de ~/.config/bluefin-dakota-setup/local.yml: dados pessoais que
+# ficam fora do repositório. scripts/run-phase.sh carrega esse arquivo
+# (quando existe) depois de users/$USER.yml, nas duas fases.
+
+# Conta Google montada pelo rclone (playbooks/user/rclone-gdrive.yml).
+rclone_gdrive_email: maria@example.org
+
+# Só o administrador: contas adicionais do computador
+# (playbooks/system/users.yml, `just users`). Nenhuma senha aqui — cada
+# pessoa define a sua na tela do GDM, no primeiro login.
+extra_users:
+  - username: msilva
+    full_name: "Maria da Silva"
+    groups: []          # ex.: [wheel] para quem administra a máquina
+    shell: /bin/bash

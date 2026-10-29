@@ -1,0 +1,56 @@
+---
+# Fase de sistema: tudo que precisa de root ou é compartilhado por todos os
+# usuários — /etc, PAM, udev, serviços de sistema, Flatpaks de sistema,
+# snaps, fórmulas do Homebrew (no prefixo do administrador), contas. Rodada
+# por um administrador (wheel), sob run-empowered.sh, a cada mudança.
+#
+# Quais plays rodam é a seleção de features (features.yml + as escolhas de
+# `just configure`): scripts/run-phase.sh passa a seleção e as --tags que a
+# acompanham. Cada play tem a tag do id da sua feature (user.yml tem a
+# outra metade sob o mesmo id); as de tag always rodam sempre.
+#
+# Uso: just system
+- name: "Preflight: a seleção veio por scripts/run-phase.sh"
+  ansible.builtin.import_playbook: playbooks/system/preflight.yml
+
+- name: Contas adicionais (extra_users)
+  ansible.builtin.import_playbook: playbooks/system/users.yml
+
+- name: "YubiKey: pam_u2f no system-auth, pcscd"
+  ansible.builtin.import_playbook: playbooks/system/yubikey.yml
+
+- name: KeePassXC trancado ao remover a YubiKey
+  ansible.builtin.import_playbook: playbooks/system/keepassxc-yubikey-lock.yml
+
+- name: "Bitwarden: Flatpak e polkit action (opt-in)"
+  ansible.builtin.import_playbook: playbooks/system/bitwarden.yml
+
+- name: "Proton Pass CLI: Homebrew (opt-in)"
+  ansible.builtin.import_playbook: playbooks/system/proton-pass.yml
+
+- name: Caps Lock via kanata
+  ansible.builtin.import_playbook: playbooks/system/capslock.yml
+
+- name: "ble.sh: make/gawk do Homebrew"
+  ansible.builtin.import_playbook: playbooks/system/blesh.yml
+
+- name: VSCode (snap)
+  ansible.builtin.import_playbook: playbooks/system/vscode.yml
+
+- name: Emacs (snap)
+  ansible.builtin.import_playbook: playbooks/system/emacs.yml
+
+- name: Neovim (Homebrew)
+  ansible.builtin.import_playbook: playbooks/system/neovim.yml
+
+- name: systemd-boot sem menu
+  ansible.builtin.import_playbook: playbooks/system/systemd-boot.yml
+
+- name: libfprint goodix538d (opt-in)
+  ansible.builtin.import_playbook: playbooks/system/libfprint.yml
+
+- name: EPSON L4160 (opt-in)
+  ansible.builtin.import_playbook: playbooks/system/printer.yml
+
+- name: "Google Drive: rclone do Homebrew (opt-in)"
+  ansible.builtin.import_playbook: playbooks/system/rclone-gdrive.yml

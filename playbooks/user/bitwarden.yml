@@ -1,0 +1,69 @@
+---
+# Bitwarden, parte de cada pessoa: o agente SSH do Flatpak ligado à
+# sessão, tanto estaticamente (~/.config/environment.d, lido pelo systemd
+# --user na sessão inteira, IDEs incluídos) quanto dinamicamente (as
+# unidades bitwarden-ssh-agent.path + bitwarden-ssh-agent-env.service, que
+# reexportam a variável quando o socket aparece). O gcr-ssh-agent é
+# mascarado para não disputar o SSH_AUTH_SOCK.
+#
+# O environment.d e as unidades usam force: false — só são copiados se
+# ainda não existirem. Numa máquina com o lbssousa/dotfiles aplicado
+# (stow), eles já são links para o mesmo conteúdo e ficam como estão.
+#
+# Opt-in (features.yml). Desligada, só para de ser gerenciada (os arquivos
+# podem ser do stow).
+#
+# Uso: just apply bitwarden
+- name: Bitwarden — agente SSH da sessão
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [bitwarden]
+
+  vars:
+    feature_on: "{{ features['bitwarden'] | default(false) }}"
+
+  tasks:
+    - name: Agente SSH do Bitwarden
+      when: feature_on | bool
+      block:
+        - name: Garantir ~/.config/environment.d e ~/.config/systemd/user
+          ansible.builtin.file:
+            path: "{{ target_xdg_config_home }}/{{ item }}"
+            state: directory
+            mode: "0755"
+          loop: [environment.d, systemd/user]
+
+        - name: SSH_AUTH_SOCK estático para IDEs e apps da sessão
+          ansible.builtin.copy:
+            src: 20-bitwarden-ssh-agent.conf
+            dest: "{{ target_xdg_config_home }}/environment.d/20-bitwarden-ssh-agent.conf"
+            mode: "0644"
+            force: false
+
+        - name: Instalar as unidades systemd --user do agente SSH
+          ansible.builtin.copy:
+            src: "{{ item }}"
+            dest: "{{ target_xdg_config_home }}/systemd/user/{{ item }}"
+            mode: "0644"
+            force: false
+          loop: "{{ bitwarden_ssh_agent_units }}"
+          notify: reload systemd --user
+
+        - name: Mascarar o gcr-ssh-agent (disputa o SSH_AUTH_SOCK)
+          ansible.builtin.systemd:
+            name: "{{ item }}"
+            scope: user
+            masked: true
+          loop: "{{ gcr_ssh_agent_units }}"
+
+        - name: Habilitar o path unit do agente SSH
+          ansible.builtin.systemd:
+            name: bitwarden-ssh-agent.path
+            scope: user
+            daemon_reload: true
+            enabled: true
+            state: started
+
+  handlers:
+    - ansible.builtin.import_tasks: tasks/handlers-user.yml

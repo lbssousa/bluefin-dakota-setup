@@ -1,0 +1,9 @@
+---
+# Handlers compartilhados pelas plays da fase de usuário; importe com
+#   handlers:
+#     - ansible.builtin.import_tasks: tasks/handlers-user.yml
+- name: reload systemd --user
+  ansible.builtin.systemd:
+    daemon_reload: true
+    scope: user
+  listen: reload systemd --user

@@ -1,0 +1,27 @@
+---
+# Proton Pass CLI, parte da máquina: a fórmula oficial do Homebrew
+# (proton-pass-cli, binário `pass-cli`, sem tap), instalada no prefixo do
+# administrador — o que roda esta fase, sem become — e no PATH de todo
+# mundo. O serviço que injeta as chaves SSH fica em
+# playbooks/user/proton-pass.yml.
+#
+# Opt-in (features.yml). Desligada, a fórmula fica (outras pessoas podem
+# estar usando); a parte de cada usuário é desfeita na fase de usuário.
+#
+# Uso: just apply proton-pass
+- name: Proton Pass CLI (Homebrew)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [proton-pass]
+
+  vars:
+    feature_on: "{{ features['proton-pass'] | default(false) }}"
+
+  tasks:
+    - name: Instalar o Proton Pass CLI via Homebrew
+      community.general.homebrew:
+        name: "{{ proton_pass_cli_formula }}"
+        path: "{{ homebrew_prefix }}/bin"
+        state: present
+      when: feature_on | bool

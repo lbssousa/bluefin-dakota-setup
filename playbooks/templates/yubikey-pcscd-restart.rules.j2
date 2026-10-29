@@ -1,0 +1,26 @@
+# 71-yubikey-pcscd-restart.rules — reinicia o pcscd sempre que uma
+# YubiKey é conectada. Instalado pelo bluefin-dakota-setup (feature
+# yubikey-pcscd) a partir de yubikey-pcscd-restart.rules.j2 — NÃO EDITE
+# À MÃO, reescrito a cada execução.
+#
+# Bug conhecido do pcsc-lite/pcscd, não específico deste repositório
+# (afeta Fedora Atomic/Silverblue, Bluefin, Dakota e outras distros):
+# depois que o pcscd já está rodando, ele nem sempre reconhece a
+# YubiKey ao reconectar (replug) ou quando o sistema volta de
+# suspensão — o cartão OpenPGP some para o GnuPG/scdaemon
+# ("gpg --card-status" fica sem cartão) até reiniciar o serviço na mão
+# (systemctl restart pcscd). O drop-in ExecStartPre=udevadm settle
+# (veja yubikey_pcscd_dropin, mesma feature) só resolve a corrida com o
+# udev no BOOT, quando a YubiKey já está conectada; esta regra cobre o
+# caso mais comum na prática — plugar a YubiKey depois do boot, trocar
+# de porta USB, ou suspender/retomar a máquina com ela conectada.
+#
+# ATTR{idVendor}, não ENV{PRODUCT}: ao contrário do evento "remove"
+# (veja keepassxc-yubikey-lock.rules.j2), os atributos sysfs do
+# dispositivo já estão disponíveis em eventos "add".
+#
+# systemd-run --no-block: RUN+= roda sincronamente dentro do worker do
+# udev — sem --no-block, um restart do pcscd (que por sua vez espera o
+# udev terminar de processar o evento atual) poderia travar em
+# deadlock. Mesma técnica de keepassxc-yubikey-lock.rules.j2.
+ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="1050", RUN+="/usr/bin/systemd-run --no-block --quiet --collect --service-type=oneshot /usr/bin/systemctl restart pcscd.service"

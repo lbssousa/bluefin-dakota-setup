@@ -1,0 +1,70 @@
+---
+# ssh-askpass gráfico como padrão da sessão — para o ssh/git pedirem o
+# PIN/passphrase (ex.: chave FIDO2 ed25519-sk da YubiKey) e mostrarem o
+# aviso "toque a chave" mesmo sem TTY (git push de dentro do Zed ou do
+# VSCode). Sem askpass, o ssh falha com "incorrect passphrase supplied".
+#
+# Usa o primeiro askpass gráfico de ssh_askpass_candidates; o Dakota não
+# traz nenhum por padrão (o gcr4-ssh-askpass não serve: só funciona chamado
+# pelo gcr-ssh-agent), então sem nenhum avisa e pula. Grava
+# ~/.config/environment.d/30-ssh-askpass.conf, lido pelo systemd --user no
+# início da sessão: vale numa NOVA sessão (logout/login).
+# SSH_ASKPASS_REQUIRE=prefer faz o ssh usar o askpass mesmo com TTY.
+#
+# Desligada (revert), remove o arquivo.
+#
+# Uso: just apply ssh-askpass
+- name: ssh-askpass gráfico como padrão da sessão
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [ssh-askpass]
+
+  vars:
+    feature_on: "{{ features['ssh-askpass'] | default(true) }}"
+
+  tasks:
+    - name: ssh-askpass gráfico
+      when: feature_on | bool
+      block:
+        - name: Procurar um ssh-askpass gráfico instalado
+          ansible.builtin.stat:
+            path: "{{ item }}"
+          loop: "{{ ssh_askpass_candidates }}"
+          register: ssh_askpass_stats
+
+        - name: Escolher o primeiro encontrado
+          ansible.builtin.set_fact:
+            ssh_askpass_bin: >-
+              {{ ssh_askpass_stats.results
+                 | selectattr('stat.exists') | map(attribute='item') | first | default('') }}
+
+        - name: Avisar e pular se não houver nenhum
+          ansible.builtin.debug:
+            msg: >-
+              PULADO: nenhum ssh-askpass gráfico encontrado (procurei
+              {{ ssh_askpass_candidates | join(', ') }}).
+          when: ssh_askpass_bin == ''
+
+        - name: Garantir ~/.config/environment.d
+          ansible.builtin.file:
+            path: "{{ ssh_askpass_conf | dirname }}"
+            state: directory
+            mode: "0755"
+          when: ssh_askpass_bin != ''
+
+        - name: Definir SSH_ASKPASS e SSH_ASKPASS_REQUIRE
+          ansible.builtin.copy:
+            dest: "{{ ssh_askpass_conf }}"
+            mode: "0644"
+            content: |
+              # Gerenciado pelo bluefin-dakota-setup (feature ssh-askpass)
+              SSH_ASKPASS={{ ssh_askpass_bin }}
+              SSH_ASKPASS_REQUIRE={{ ssh_askpass_require }}
+          when: ssh_askpass_bin != ''
+
+    - name: Remover o SSH_ASKPASS da sessão
+      ansible.builtin.file:
+        path: "{{ ssh_askpass_conf }}"
+        state: absent
+      when: not feature_on | bool

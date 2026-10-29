@@ -1,0 +1,137 @@
+---
+# Bash com "cara de Fish", em dois pedaços independentes:
+#
+#   bash-completion  completion case-insensitive (completion-ignore-case) e
+#                    busca no histórico pelas setas cima/baixo (como o
+#                    zsh-history-substring-search) — recursos nativos do GNU
+#                    Readline, via ~/.inputrc; não dependem do ble.sh.
+#   blesh            o ble.sh (github.com/akinomyoga/ble.sh, "Bash Line
+#                    Editor"): syntax highlighting e autosuggestions (em
+#                    cinza a partir do histórico, aceitas com End/→). Sem
+#                    fórmula no Homebrew: compilado do código-fonte em
+#                    ~/.local, com o make/gawk que a fase de sistema instala.
+#
+# ~/.inputrc e ~/.bashrc são editados de forma não destrutiva
+# (lineinfile/blockinfile com marcador próprio): o resto do arquivo continua
+# seu.
+#
+# Uso: just apply bash-completion blesh
+- name: Bash — completion case-insensitive e busca no histórico
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [bash-completion]
+
+  vars:
+    feature_on: "{{ features['bash-completion'] | default(true) }}"
+
+  tasks:
+    # ── Recursos nativos do Readline (~/.inputrc) ──────────────────────
+    - name: Bash — completion case-insensitive e history-substring-search
+      when: feature_on | bool
+      block:
+        - name: Verificar se ~/.inputrc já existe
+          ansible.builtin.stat:
+            path: "{{ target_home }}/.inputrc"
+          register: inputrc_stat
+
+        - name: Herdar os defaults de /etc/inputrc (só ao criar um ~/.inputrc novo)
+          # Sem isso, criar ~/.inputrc faria o Readline parar de ler
+          # /etc/inputrc (que só é lido quando ~/.inputrc NÃO existe, ou
+          # quando o próprio ~/.inputrc pede pra incluí-lo).
+          ansible.builtin.lineinfile:
+            path: "{{ target_home }}/.inputrc"
+            create: true
+            mode: "0644"
+            line: "$include /etc/inputrc"
+            insertbefore: BOF
+          when: not inputrc_stat.stat.exists
+
+        - name: Habilitar autocomplete case-insensitive
+          ansible.builtin.lineinfile:
+            path: "{{ target_home }}/.inputrc"
+            create: true
+            mode: "0644"
+            regexp: '^set\s+completion-ignore-case\b'
+            line: "set completion-ignore-case on"
+
+        - name: Habilitar history-substring-search (seta para cima)
+          ansible.builtin.lineinfile:
+            path: "{{ target_home }}/.inputrc"
+            create: true
+            mode: "0644"
+            regexp: '^"\\e\[A":'
+            line: '"\e[A": history-search-backward'
+
+        - name: Habilitar history-substring-search (seta para baixo)
+          ansible.builtin.lineinfile:
+            path: "{{ target_home }}/.inputrc"
+            create: true
+            mode: "0644"
+            regexp: '^"\\e\[B":'
+            line: '"\e[B": history-search-forward'
+
+- name: ble.sh — syntax highlighting e autosuggestions
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [blesh]
+
+  vars:
+    feature_on: "{{ features['blesh'] | default(true) }}"
+
+  tasks:
+    # ── ble.sh (syntax highlighting + autosuggestions, estilo Fish) ────
+    - name: ble.sh — syntax highlighting e autosuggestions no Bash
+      when: feature_on | bool
+      block:
+        - name: Clonar/atualizar o código-fonte do ble.sh
+          ansible.builtin.git:
+            repo: "{{ blesh_repo }}"
+            dest: "{{ blesh_src_dir }}"
+            recursive: true
+            force: false
+          register: blesh_git_result
+
+        - name: Verificar se o ble.sh já está instalado
+          ansible.builtin.stat:
+            path: "{{ blesh_entry }}"
+          register: blesh_entry_stat
+
+        # make/gawk do Homebrew (playbooks/system/blesh.yml): o PATH desta
+        # fase pode não ter o prefixo, então ele vai na frente.
+        - name: Compilar e instalar o ble.sh (make install)
+          ansible.builtin.command:
+            cmd: "make install PREFIX={{ blesh_install_prefix }}"
+            chdir: "{{ blesh_src_dir }}"
+          environment:
+            PATH: "{{ homebrew_prefix }}/bin:{{ lookup('ansible.builtin.env', 'PATH') }}"
+          when: not blesh_entry_stat.stat.exists or blesh_git_result.changed
+          changed_when: true
+
+        - name: Ativar o ble.sh no início do ~/.bashrc (source, sem anexar ainda)
+          # --attach=none adia o ble-attach pro fim do .bashrc (bloco
+          # abaixo), pra ele capturar keybindings definidos depois no
+          # arquivo (fzf etc.) em vez de ter as suas próprias sobrescritas.
+          ansible.builtin.blockinfile:
+            path: "{{ target_home }}/.bashrc"
+            create: true
+            mode: "0644"
+            marker: "# {mark} ANSIBLE MANAGED BLOCK (ble.sh source)"
+            insertbefore: BOF
+            block: |
+              [[ $- == *i* ]] && source -- {{ blesh_entry }} --attach=none
+              if [[ ${BLE_VERSION-} ]]; then
+                bleopt complete_auto_delay=200
+                ble-face auto_complete='fg=240,underline,italic'
+              fi
+
+        - name: Anexar o ble.sh no fim do ~/.bashrc (ble-attach)
+          ansible.builtin.blockinfile:
+            path: "{{ target_home }}/.bashrc"
+            create: true
+            mode: "0644"
+            marker: "# {mark} ANSIBLE MANAGED BLOCK (ble.sh attach)"
+            insertafter: EOF
+            block: |
+              [[ ! ${BLE_VERSION-} ]] || ble-attach

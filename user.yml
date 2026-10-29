@@ -1,0 +1,48 @@
+---
+# Fase de usuário: tudo que mora no home ou na sessão de cada pessoa —
+# ~/.config, systemctl --user, gsettings/dconf, ~/.var/app. Rodada por cada
+# usuário, dentro da própria sessão gráfica, como ele mesmo (nunca sob
+# run0): nenhuma task aqui vira root nem instala software. O que ela precisa
+# instalado vem de system.yml, rodado antes por um administrador.
+#
+# Quais plays rodam é a seleção de features (features.yml + as escolhas
+# deste usuário em `just configure`): scripts/run-phase.sh passa a seleção e
+# as --tags que a acompanham. Configurações por usuário vêm de
+# users/<usuário>.yml e de ~/.config/bluefin-dakota-setup/local.yml.
+#
+# Uso: just user
+- name: "Preflight: como o usuário, na sessão gráfica, com a seleção"
+  ansible.builtin.import_playbook: playbooks/user/preflight.yml
+
+- name: "YubiKey: registro para o pam_u2f, chave GPG e assinatura no git"
+  ansible.builtin.import_playbook: playbooks/user/yubikey.yml
+
+- name: ssh-askpass gráfico
+  ansible.builtin.import_playbook: playbooks/user/ssh-askpass.yml
+
+- name: "Bitwarden: agente SSH da sessão (opt-in)"
+  ansible.builtin.import_playbook: playbooks/user/bitwarden.yml
+
+- name: "Proton Pass CLI: chaves SSH no agente ativo (opt-in)"
+  ansible.builtin.import_playbook: playbooks/user/proton-pass.yml
+
+- name: "KeePassXC: KeePassXC-Browser nos navegadores Flatpak, autostart"
+  ansible.builtin.import_playbook: playbooks/user/keepassxc.yml
+
+- name: Atalhos no estilo Omarchy (opt-in)
+  ansible.builtin.import_playbook: playbooks/user/omarchy-keybindings.yml
+
+- name: "Bash: Readline estilo Fish, ble.sh"
+  ansible.builtin.import_playbook: playbooks/user/bash.yml
+
+- name: "Emacs: AUCTeX, yasnippet, lsp-mode, tema classic"
+  ansible.builtin.import_playbook: playbooks/user/emacs.yml
+
+- name: LazyVim
+  ansible.builtin.import_playbook: playbooks/user/neovim.yml
+
+- name: Zed com Podman
+  ansible.builtin.import_playbook: playbooks/user/zed.yml
+
+- name: Google Drive via rclone (opt-in)
+  ansible.builtin.import_playbook: playbooks/user/rclone-gdrive.yml

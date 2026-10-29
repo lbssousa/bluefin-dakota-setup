@@ -1,0 +1,269 @@
+---
+# Timeout do become na conexão local. Sob run-empowered.sh o run0 interno
+# volta na hora; o valor generoso só importa numa execução sem ele, em que
+# cada run0 espera um diálogo do polkit que pode levar mais que os 10s
+# padrão do Ansible.
+ansible_local_become_success_timeout: 60
+
+# A seleção de features resolvida: features.yml (o catálogo) mais
+# ~/.config/bluefin-dakota-setup/features.yml (`just configure`), passada
+# como extra vars por scripts/run-phase.sh (scripts/features.py resolve).
+# Os valores vazios aqui só deixam um `ansible-playbook --syntax-check`
+# puro funcionar: as preflights recusam rodar sem features_resolved.
+features_resolved: false
+features: {}
+
+# Homebrew (linuxbrew) — vem pré-instalado no Dakota, com o prefixo
+# pertencente ao primeiro usuário (o administrador). O Homebrew não divide
+# um prefixo entre usuários: só a fase de sistema (rodando como esse
+# administrador, sem become) instala fórmulas; os binários em
+# <prefixo>/bin ficam no PATH de todo mundo.
+homebrew_prefix: /home/linuxbrew/.linuxbrew
+
+# Contas adicionais do computador (playbooks/system/users.yml, `just users`).
+# Logins e nomes completos são dados pessoais e ficam fora do repositório:
+# declare extra_users no ~/.config/bluefin-dakota-setup/local.yml do
+# administrador (modelo: users/local.example.yml).
+#
+#   username   login
+#   full_name  nome completo (GECOS, o que o GDM mostra)
+#   groups     grupos extras, ex.: [wheel] para quem administra a máquina
+#   shell      shell de login (padrão: /bin/bash)
+extra_users: []
+
+# Bitwarden (playbooks/{system,user}/bitwarden.yml) — Flatpak de sistema,
+# do Flathub.
+bitwarden_flatpak_id: com.bitwarden.desktop
+bitwarden_flatpak_remote: flathub
+# Agente SSH do Bitwarden: unidades systemd --user em ~/.config/systemd/user
+# e a camada estática em ~/.config/environment.d.
+bitwarden_ssh_agent_units:
+  - bitwarden-ssh-agent.path
+  - bitwarden-ssh-agent-env.service
+# O gcr-ssh-agent disputa o SSH_AUTH_SOCK da sessão; fica mascarado para o
+# agente do Bitwarden prevalecer.
+gcr_ssh_agent_units:
+  - gcr-ssh-agent.socket
+  - gcr-ssh-agent.service
+# Polkit action do desbloqueio biométrico. /usr é somente leitura; o polkitd
+# também procura actions em /usr/local/share/polkit-1/actions/.
+bitwarden_polkit_action_dest: /usr/local/share/polkit-1/actions/com.bitwarden.Bitwarden.policy
+
+# VSCode e Emacs via snap (playbooks/system/{vscode,emacs}.yml). O Dakota
+# não traz snapd na imagem: as plays pressupõem que ele já foi provisionado
+# e, sem o binário `snap`, avisam e pulam. O snap "emacs" põe o binário em
+# /snap/bin, que pode não estar no PATH do ansible-playbook — por isso o
+# caminho completo.
+vscode_snap_name: code
+emacs_snap_name: emacs
+emacs_bin: /snap/bin/emacs
+
+# Pacotes Emacs instalados com o package.el (modo batch, só os que faltam)
+# e os repositórios de onde vêm (playbooks/user/emacs.yml). AUCTeX e
+# yasnippet estão no GNU ELPA; lsp-mode (e as dependências dele) só no
+# MELPA. Os mesmos repositórios ficam no bluefin-dakota-setup.el gerenciado,
+# para o package.el conseguir atualizá-los.
+emacs_package_archives:
+  - name: gnu
+    url: https://elpa.gnu.org/packages/
+  - name: nongnu
+    url: https://elpa.nongnu.org/nongnu/
+  - name: melpa
+    url: https://melpa.org/packages/
+emacs_packages:
+  - auctex
+  - yasnippet
+  - lsp-mode
+# Fonte padrão do Emacs (família no fontconfig e tamanho em pontos). A Nerd
+# Font "Mono" mantém os ícones com largura de uma célula.
+emacs_font_family: JetBrainsMono Nerd Font Mono
+emacs_font_size: 14
+
+# Proton Pass CLI (playbooks/{system,user}/proton-pass.yml) — fórmula oficial
+# do Homebrew, sem tap (formulae.brew.sh/formula/proton-pass-cli; binário
+# `pass-cli`).
+proton_pass_cli_formula: proton-pass-cli
+# Serviço systemd --user que, no início da sessão, injeta as chaves SSH do
+# cofre no agente SSH JÁ ATIVO (`pass-cli ssh-agent load`, que usa o
+# SSH_AUTH_SOCK, ao contrário de `ssh-agent start`, que faria o pass-cli
+# virar um agente próprio e disputar com o do Bitwarden). Pré-requisito
+# fora do escopo: `pass-cli login` uma vez, numa sessão nova.
+proton_pass_ssh_agent_load_script_dest: "{{ target_home }}/.local/bin/proton-pass-ssh-agent-load.sh"
+proton_pass_ssh_agent_load_unit: proton-pass-ssh-agent-load.service
+proton_pass_keyring_env_file: "{{ target_home }}/.config/environment.d/25-proton-pass-keyring.conf"
+# Segundos que o script espera (poll de 1s) o socket de um agente SSH ativo
+# aparecer antes de desistir sem erro (ex.: o Bitwarden só cria o socket
+# quando o app abre).
+proton_pass_ssh_agent_wait_seconds: 30
+# Backend de keyring do pass-cli no Linux. "kernel" (o padrão dele) mora só
+# em memória e é zerado a cada boot; "dbus" usa o Secret Service (GNOME
+# Keyring), desbloqueado no login pelo PAM do GDM, e sobrevive a reboot.
+proton_pass_linux_keyring: dbus
+
+# Impressora EPSON L4160 (playbooks/system/printer.yml) — fila CUPS
+# driverless (IPP Everywhere), sem o driver ESC/P-R da Epson. Confirme o
+# hostname com `avahi-resolve --name EPSONE0321F.local` ou `lpinfo -v` se a
+# impressora for trocada/renomeada na rede.
+printer_l4160_name: L4160
+printer_l4160_location: "Wi-Fi"
+printer_l4160_description: "EPSON L4160 Series"
+printer_l4160_hostname: EPSONE0321F.local
+printer_l4160_device_uri: "ipp://{{ printer_l4160_hostname }}:631/ipp/print"
+printer_l4160_error_policy: abort-job
+printer_l4160_set_default: true
+
+# Neovim + LazyVim (playbooks/user/neovim.yml) — o starter oficial só é
+# clonado se ~/.config/nvim ainda não existir.
+lazyvim_starter_repo: https://github.com/LazyVim/starter.git
+nvim_config_dir: "{{ target_xdg_config_home }}/nvim"
+
+# YubiKey (playbooks/{system,user}/yubikey.yml). O Dakota é GNOME OS: sem
+# authselect, o pam_u2f entra direto no /etc/pam.d/system-auth, logo depois
+# do pam_fprintd. "cue" mostra o aviso "toque a chave"; "nouserok" deixa o
+# PAM cair para digital/senha se o usuário não tiver chaves registradas
+# (nunca bloqueia o login).
+yubikey_pam_u2f_module: /usr/lib/x86_64-linux-gnu/security/pam_u2f.so
+yubikey_pam_u2f_line: "auth       sufficient   pam_u2f.so cue nouserok"
+yubikey_pam_marker: "# {mark} yubikey pam_u2f (bluefin-dakota-setup)"
+# Marcador das versões do bluefin-initial-setup, migrado para o de cima.
+yubikey_pam_legacy_marker: "# {mark} yubikey pam_u2f (playbooks/dakota/yubikey.yml)"
+yubikey_u2f_keys: "{{ target_xdg_config_home }}/Yubico/u2f_keys"
+yubikey_polkit_helper_dropin: /etc/systemd/system/polkit-agent-helper@.service.d/yubikey-u2f.conf
+yubikey_pcscd_dropin: /etc/systemd/system/pcscd.service.d/udevadm-settle.conf
+# Regra udev que reinicia o pcscd sempre que uma YubiKey é conectada — o
+# pcscd já rodando nem sempre reconhece a reconexão nem a volta da
+# suspensão, e o cartão OpenPGP some para o GnuPG até um restart manual.
+yubikey_pcscd_restart_udev_rule_dest: /etc/udev/rules.d/71-yubikey-pcscd-restart.rules
+
+# Caps Lock via kanata (playbooks/system/capslock.yml): serviço de sistema
+# (o /dev/uinput é root:root, sem grupo de acesso), configuração da máquina
+# em /etc/kanata — vale para o teclado de todo mundo.
+kanata_config_dest: /etc/kanata/kanata.kbd
+kanata_systemd_unit: /etc/systemd/system/kanata.service
+
+# KeePassXC — tranca as bases de cada sessão aberta quando a YubiKey é
+# removida (evento udev), via D-Bus
+# (org.keepassxc.KeePassXC.MainWindow.lockAllDatabases). O script fica em
+# /var/usrlocal/bin, que é gravável e é referenciado só pelo caminho
+# absoluto no RUN+= da regra (no Dakota, /usr/local aponta para lá).
+keepassxc_flatpak_id: org.keepassxc.KeePassXC
+keepassxc_yubikey_lock_script_dest: /var/usrlocal/bin/keepassxc-yubikey-lock.sh
+keepassxc_yubikey_lock_udev_rule_dest: /etc/udev/rules.d/70-keepassxc-yubikey-lock.rules
+
+# KeePassXC-Browser nos navegadores Flatpak (playbooks/user/keepassxc.yml).
+# Cada Flatpak só enxerga o próprio diretório de dados (~/.var/app/<id>/),
+# então o manifesto e o wrapper ficam DENTRO do diretório de cada
+# navegador, e o wrapper usa flatpak-spawn --host para rodar o
+# keepassxc-proxy do Flatpak do KeePassXC no host.
+keepassxc_browser_extension_firefox_id: keepassxc-browser@keepassxc.org
+keepassxc_browser_extension_chrome_id: oboonakemofpalcgghocfoadofidjkkk
+keepassxc_native_messaging_manifest_name: org.keepassxc.keepassxc_browser.json
+keepassxc_native_messaging_targets:
+  - flatpak_id: org.mozilla.firefox
+    kind: firefox
+  - flatpak_id: com.google.Chrome
+    kind: chromium
+    vendor_dir: google-chrome
+  - flatpak_id: com.brave.Browser
+    kind: chromium
+    vendor_dir: BraveSoftware/Brave-Browser
+  - flatpak_id: org.chromium.Chromium
+    kind: chromium
+    vendor_dir: chromium
+  - flatpak_id: com.microsoft.Edge
+    kind: chromium
+    vendor_dir: microsoft-edge
+keepassxc_autostart_desktop: "{{ target_xdg_config_home }}/autostart/{{ keepassxc_flatpak_id }}.desktop"
+
+# libfprint goodix538d (playbooks/system/libfprint.yml) — o fork compilado
+# num container distrobox descartável (as dependências de build ficam
+# fora do host) e instalado em /usr/local, que no Dakota é o link
+# gravável para /var/usrlocal. Nada do resto de /usr é tocado.
+libfprint_container_name: libfprint-build
+libfprint_repo: https://github.com/lbssousa/libfprint.git
+# Vazio = a tag mais recente do fork (git ls-remote a cada execução). Para
+# fixar, uma tag/branch/commit (ex.: v1.94.100-goodix538d.1).
+libfprint_ref: ""
+libfprint_checkout_dir: "{{ target_home }}/src/libfprint-goodix538d"
+libfprint_stage_dir: "{{ target_home }}/src/libfprint-goodix538d-stage"
+libfprint_usrlocal_prefix: /usr/local
+libfprint_usrlocal_libdir: "{{ libfprint_usrlocal_prefix }}/lib64"
+libfprint_fprintd_dropin: /etc/systemd/system/fprintd.service.d/override.conf
+libfprint_udev_rule: /etc/udev/rules.d/70-libfprint-2.rules
+
+# ble.sh (playbooks/{system,user}/blesh.yml) — sem fórmula no Homebrew:
+# compilado do código-fonte (make install) em ~/.local; make/gawk vêm do
+# Homebrew só para o build.
+blesh_repo: https://github.com/akinomyoga/ble.sh.git
+blesh_build_deps:
+  - make
+  - gawk
+blesh_src_dir: "{{ target_xdg_data_home }}/ble.sh-src"
+blesh_install_prefix: "{{ target_home }}/.local"
+blesh_entry: "{{ target_xdg_data_home }}/blesh/ble.sh"
+
+# systemd-boot (playbooks/system/systemd-boot.yml). Segundos de menu antes
+# da entrada padrão; 0 = menu oculto (Espaço no boot ainda o mostra). Em
+# dual-boot, aumente (ex.: 3).
+systemd_boot_timeout: 0
+systemd_boot_console_mode: keep
+systemd_boot_editor: "no"
+
+# ssh-askpass gráfico (playbooks/user/ssh-askpass.yml): o primeiro destes que
+# existir vira o SSH_ASKPASS da sessão. O gcr4-ssh-askpass não serve (só
+# funciona chamado pelo gcr-ssh-agent).
+ssh_askpass_candidates:
+  - /usr/libexec/openssh/gnome-ssh-askpass
+  - /usr/libexec/openssh/ssh-askpass
+  - /usr/lib/ssh/ssh-askpass
+  - /usr/bin/ssh-askpass
+ssh_askpass_require: prefer
+ssh_askpass_conf: "{{ target_home }}/.config/environment.d/30-ssh-askpass.conf"
+
+# Atalhos no estilo Omarchy (playbooks/user/omarchy-keybindings.yml).
+omarchy_keybindings_state_dir: "{{ target_xdg_data_home }}/bluefin-dakota-setup/keybindings-backup"
+# Onde o bluefin-initial-setup guardava o backup; reaproveitado se existir.
+omarchy_keybindings_legacy_state_dir: "{{ target_xdg_data_home }}/bluefin-initial-setup/keybindings-backup"
+omarchy_ghostty_conf: "{{ target_xdg_config_home }}/ghostty/config.ghostty"
+
+# Google Drive montado via rclone (playbooks/{system,user}/rclone-gdrive.yml).
+# A conta é pessoal: defina rclone_gdrive_email no
+# ~/.config/bluefin-dakota-setup/local.yml (veja users/local.example.yml).
+rclone_gdrive_email: ""
+rclone_bin: "{{ homebrew_prefix }}/bin/rclone"
+rclone_gdrive_remote: Google Drive
+# Base dos pontos de montagem, relativa ao $HOME: <base>/<email>/<mount_dir>.
+rclone_gdrive_base_dir: Público/Google Drive
+rclone_gdrive_config_file: "{{ target_home }}/.config/rclone/rclone.conf"
+# Credenciais OAuth da API do Google: vêm do ambiente em cada execução (ou
+# de -e); vazias = reaproveita as do rclone.conf existente.
+rclone_gdrive_client_id: "{{ lookup('ansible.builtin.env', 'RCLONE_GDRIVE_CLIENT_ID') }}"
+rclone_gdrive_client_secret: "{{ lookup('ansible.builtin.env', 'RCLONE_GDRIVE_CLIENT_SECRET') }}"
+# Nomes das pastas de montagem por idioma, como na interface web do Google
+# Drive. O idioma vem do locale atual (LC_ALL > LC_MESSAGES > LANG, ex.:
+# pt_BR.UTF-8 -> pt); idioma sem entrada aqui (ou C/POSIX) cai no inglês.
+rclone_gdrive_mount_dir_names:
+  en:
+    my-drive: My Drive
+    shared-with-me: Shared with Me
+  pt:
+    my-drive: Meu Drive
+    shared-with-me: Compartilhados comigo
+rclone_gdrive_lang: >-
+  {{ [lookup('ansible.builtin.env', 'LC_ALL'),
+      lookup('ansible.builtin.env', 'LC_MESSAGES'),
+      lookup('ansible.builtin.env', 'LANG')]
+     | select | first | default('en') | regex_replace('[_.@].*$', '') }}
+rclone_gdrive_mount_names: >-
+  {{ rclone_gdrive_mount_dir_names[rclone_gdrive_lang]
+     | default(rclone_gdrive_mount_dir_names.en) }}
+# Uma instância systemd (rclone-google-drive@<name>.service) por entrada.
+rclone_gdrive_instances:
+  - name: my-drive
+    mount_dir: "{{ rclone_gdrive_mount_names['my-drive'] }}"
+    cache_slug: google-drive
+    extra_flags: ""
+  - name: shared-with-me
+    mount_dir: "{{ rclone_gdrive_mount_names['shared-with-me'] }}"
+    cache_slug: google-drive-shared-with-me
+    extra_flags: "--drive-shared-with-me"

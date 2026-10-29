@@ -1,0 +1,199 @@
+---
+# Google Drive montado com rclone (FUSE), um serviço systemd --user por
+# ponto de montagem ("My Drive" e "Shared with Me"). Mesmo layout do
+# home/users/abutre/rclone.nix do nix-config, sem o Nix:
+#
+#   ~/.config/rclone/rclone.conf                         remote "Google Drive"
+#   ~/.config/systemd/user/rclone-google-drive@.service  unit template
+#   ~/.config/systemd/user/rclone-google-drive@<i>.env   MOUNT_DIR/CACHE_SLUG/EXTRA_FLAGS
+#   ~/.config/rclone/google-drive-email.env              GOOGLE_DRIVE_EMAIL/GOOGLE_DRIVE_BASE
+#
+# Pontos de montagem: ~/Público/Google Drive/<email>/<pasta> (base em
+# rclone_gdrive_base_dir, relativa ao $HOME). Os nomes das pastas seguem o
+# locale atual (rclone_gdrive_mount_dir_names): em pt_BR, "Meu Drive" e
+# "Compartilhados comigo". Ao trocar de idioma, as pastas do nome antigo
+# são removidas se estiverem vazias (desmontadas).
+#
+# A conta é pessoal: rclone_gdrive_email no
+# ~/.config/bluefin-dakota-setup/local.yml (sem ela, a play avisa e pula).
+# O client_id/client_secret OAuth da API do Google NÃO ficam no
+# repositório: informe-os pelo ambiente
+#
+#   RCLONE_GDRIVE_CLIENT_ID=... RCLONE_GDRIVE_CLIENT_SECRET=... just apply rclone-gdrive
+#
+# ou por -e rclone_gdrive_client_id=... -e rclone_gdrive_client_secret=....
+# Sem eles, são reaproveitados do rclone.conf existente (só a primeira
+# execução precisa deles). Nunca vão para log nem para outro lugar além do
+# rclone.conf (0600).
+#
+# O rclone.conf é reescrito a cada execução, mas o `token = ` que o rclone
+# grava após o login OAuth é preservado. Esse login é o único passo
+# interativo que a play não faz:
+#
+#   rclone config reconnect "Google Drive:"
+#
+# Enquanto não houver token os serviços ficam habilitados, mas não
+# iniciados; rode a play de novo após o login. O rclone vem do Homebrew
+# (playbooks/system/rclone-gdrive.yml).
+#
+# Opt-in (features.yml).
+#
+# Uso: just apply rclone-gdrive
+- name: rclone — montagens do Google Drive
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [rclone-gdrive]
+
+  vars:
+    feature_on: "{{ features['rclone-gdrive'] | default(false) }}"
+
+  tasks:
+    - name: Avisar que não há conta Google definida
+      ansible.builtin.debug:
+        msg: >-
+          PULADO: defina rclone_gdrive_email (a conta Google a montar) no
+          ~/.config/bluefin-dakota-setup/local.yml e rode
+          `just apply rclone-gdrive`.
+      when: feature_on | bool and rclone_gdrive_email | length == 0
+
+    - name: Montagens do Google Drive
+      when: feature_on | bool and rclone_gdrive_email | length > 0
+      block:
+        - name: Verificar se o fusermount3 existe (fuse3 do sistema base)
+          ansible.builtin.stat:
+            path: /usr/bin/fusermount3
+          register: rclone_gdrive_fusermount
+
+        - name: Falhar se o fusermount3 estiver ausente
+          ansible.builtin.fail:
+            msg: fusermount3 não encontrado em /usr/bin — o rclone mount precisa do fuse3.
+          when: not rclone_gdrive_fusermount.stat.exists
+
+        - name: Ler o rclone.conf existente, se houver (para manter o token OAuth)
+          ansible.builtin.slurp:
+            src: "{{ rclone_gdrive_config_file }}"
+          register: rclone_gdrive_existing
+          failed_when: false
+          no_log: true
+
+        - name: Extrair o token OAuth a preservar
+          ansible.builtin.set_fact:
+            rclone_gdrive_token: >-
+              {{ (rclone_gdrive_existing.content | default('') | b64decode
+                  | regex_findall('(?m)^token = (.*)$') | first | default('')) }}
+          no_log: true
+
+        - name: Resolver as credenciais OAuth (informadas ou do rclone.conf)
+          ansible.builtin.set_fact:
+            rclone_gdrive_client_id_resolved: >-
+              {{ rclone_gdrive_client_id | default('', true)
+                  or (rclone_gdrive_existing_text | regex_findall('(?m)^client_id = (.+)$') | first | default('')) }}
+            rclone_gdrive_client_secret_resolved: >-
+              {{ rclone_gdrive_client_secret | default('', true)
+                  or (rclone_gdrive_existing_text | regex_findall('(?m)^client_secret = (.+)$') | first | default('')) }}
+          vars:
+            rclone_gdrive_existing_text: "{{ rclone_gdrive_existing.content | default('') | b64decode }}"
+          no_log: true
+
+        - name: Falhar se faltarem as credenciais OAuth do Google
+          ansible.builtin.fail:
+            msg: >-
+              Faltam as credenciais OAuth da API do Google. Informe-as com
+              RCLONE_GDRIVE_CLIENT_ID e RCLONE_GDRIVE_CLIENT_SECRET (variáveis
+              de ambiente) ou -e rclone_gdrive_client_id=... -e
+              rclone_gdrive_client_secret=...; só a primeira execução precisa
+              delas, depois são reaproveitadas do rclone.conf.
+          when: rclone_gdrive_client_id_resolved | length == 0 or rclone_gdrive_client_secret_resolved | length == 0
+
+        - name: Criar o diretório de configuração do rclone
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: directory
+            mode: "0700"
+          loop:
+            - "{{ rclone_gdrive_config_file | dirname }}"
+
+        - name: Criar o diretório de units systemd do usuário
+          ansible.builtin.file:
+            path: "{{ target_home }}/.config/systemd/user"
+            state: directory
+            mode: "0755"
+
+        - name: Gravar o rclone.conf (credenciais OAuth, token preservado)
+          ansible.builtin.template:
+            src: rclone.conf.j2
+            dest: "{{ rclone_gdrive_config_file }}"
+            mode: "0600"
+          no_log: true
+          vars:
+            rclone_gdrive_client_id: "{{ rclone_gdrive_client_id_resolved }}"
+            rclone_gdrive_client_secret: "{{ rclone_gdrive_client_secret_resolved }}"
+
+        - name: Gravar o env file com o e-mail do Google Drive
+          ansible.builtin.copy:
+            dest: "{{ rclone_gdrive_config_file | dirname }}/google-drive-email.env"
+            content: |
+              GOOGLE_DRIVE_EMAIL={{ rclone_gdrive_email }}
+              GOOGLE_DRIVE_BASE={{ rclone_gdrive_base_dir }}
+            mode: "0644"
+
+        - name: Criar a estrutura de pastas do Google Drive em ~/Público
+          ansible.builtin.file:
+            path: "{{ target_home }}/{{ rclone_gdrive_base_dir }}/{{ rclone_gdrive_email }}/{{ item.mount_dir }}"
+            state: directory
+            mode: "0755"
+          loop: "{{ rclone_gdrive_instances }}"
+
+        - name: Gravar os env files de cada montagem
+          ansible.builtin.copy:
+            dest: "{{ target_home }}/.config/systemd/user/rclone-google-drive@{{ item.name }}.env"
+            content: |
+              MOUNT_DIR={{ item.mount_dir }}
+              CACHE_SLUG={{ item.cache_slug }}
+              EXTRA_FLAGS={{ item.extra_flags }}
+            mode: "0644"
+          loop: "{{ rclone_gdrive_instances }}"
+
+        - name: Instalar a unit template de montagem do rclone
+          ansible.builtin.template:
+            src: rclone-google-drive@.service.j2
+            dest: "{{ target_home }}/.config/systemd/user/rclone-google-drive@.service"
+            mode: "0644"
+
+        - name: Habilitar as montagens no login
+          ansible.builtin.systemd:
+            name: "rclone-google-drive@{{ item.name }}.service"
+            scope: user
+            daemon_reload: true
+            enabled: true
+          loop: "{{ rclone_gdrive_instances }}"
+
+        - name: Iniciar (reiniciar) as montagens quando houver token OAuth
+          ansible.builtin.systemd:
+            name: "rclone-google-drive@{{ item.name }}.service"
+            scope: user
+            state: restarted
+          loop: "{{ rclone_gdrive_instances }}"
+          when: rclone_gdrive_token | length > 0
+
+        - name: Remover pastas de montagem vazias com nomes de outro idioma
+          ansible.builtin.command:
+            argv: [rmdir, "{{ target_home }}/{{ rclone_gdrive_base_dir }}/{{ rclone_gdrive_email }}/{{ item }}"]
+          # rmdir só apaga pasta vazia e recusa ponto de montagem ativo: nunca
+          # toca em conteúdo do Drive. Ausente/não vazia = nada a fazer.
+          register: rclone_gdrive_rmdir
+          changed_when: rclone_gdrive_rmdir.rc == 0
+          failed_when: false
+          loop: >-
+            {{ rclone_gdrive_mount_dir_names.values() | map('dict2items') | flatten
+               | map(attribute='value') | unique
+               | difference(rclone_gdrive_instances | map(attribute='mount_dir')) }}
+
+        - name: Orientar como concluir se ainda não há token OAuth
+          ansible.builtin.debug:
+            msg: >-
+              Ainda sem token OAuth: rode `rclone config reconnect "{{ rclone_gdrive_remote }}:"`
+              (abre o navegador; entre como {{ rclone_gdrive_email }}) e depois
+              `just apply rclone-gdrive` de novo para iniciar as montagens.
+          when: rclone_gdrive_token | length == 0

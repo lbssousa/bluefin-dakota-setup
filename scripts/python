@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Roda o Python com PyYAML: o python3 do sistema, se tiver o módulo (nem
+# toda imagem traz), senão o do ansible do Homebrew, que sempre traz.
+#
+# Uso: scripts/python <script.py> [args]
+set -euo pipefail
+
+candidates=(python3)
+if command -v brew >/dev/null; then
+    candidates+=("$(brew --prefix ansible 2>/dev/null)/libexec/bin/python")
+fi
+for py in "${candidates[@]}"; do
+    if "$py" -c 'import yaml' 2>/dev/null; then
+        exec "$py" "$@"
+    fi
+done
+echo "Nenhum Python com PyYAML encontrado (tente \`just setup\`, que instala o ansible do Homebrew)." >&2
+exit 1

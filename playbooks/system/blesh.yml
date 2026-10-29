@@ -1,0 +1,21 @@
+---
+# ble.sh, parte da máquina: make e gawk do Homebrew, que o build do ble.sh
+# (playbooks/user/bash.yml, em ~/.local de cada pessoa) usa.
+#
+# Uso: just apply blesh
+- name: ble.sh — dependências de build (Homebrew)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [blesh]
+
+  vars:
+    feature_on: "{{ features['blesh'] | default(true) }}"
+
+  tasks:
+    - name: Instalar make/gawk via Homebrew
+      community.general.homebrew:
+        name: "{{ blesh_build_deps }}"
+        path: "{{ homebrew_prefix }}/bin"
+        state: present
+      when: feature_on | bool

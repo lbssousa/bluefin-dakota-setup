@@ -1,0 +1,26 @@
+;; Caps Lock: toque -> Esc, segurar -> Ctrl, Shift+toque -> Caps Lock.
+;; Processado em nível evdev (funciona igual no TTY e no Wayland, ao
+;; contrário de setxkbmap/"Origens de entrada" do GNOME, que só cobrem
+;; X11/compositor). Portado de lbssousa/nix-config
+;; (modules/system/core/localization.nix).
+;;
+;; Instalado em /etc/kanata/kanata.kbd pelo bluefin-dakota-setup (feature
+;; capslock) e reescrito a cada execução: mude-o aqui, no repositório.
+(defcfg
+  process-unmapped-keys yes
+)
+
+(defsrc
+  caps
+)
+
+(defalias
+  caps (fork
+    (tap-hold-press 200 200 esc lctrl)
+    (tap-hold-press 200 200 caps lctrl)
+    (lsft rsft))
+)
+
+(deflayer base
+  @caps
+)

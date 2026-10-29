@@ -1,0 +1,101 @@
+---
+# Caps Lock remapeado em nível evdev via kanata: toque = Esc, segurar =
+# Ctrl, Shift+toque = Caps Lock. Funciona igual no TTY e no Wayland, ao
+# contrário do setxkbmap/"Origens de entrada" do GNOME. Portado de
+# lbssousa/nix-config (modules/system/core/localization.nix).
+#
+# O kanata roda como root (o /dev/uinput é root:root, sem grupo de acesso)
+# numa unidade de sistema própria em /etc/systemd/system — não pelo
+# `brew services`, que grava serviços de root em /usr/lib/systemd/system,
+# somente leitura no Dakota. A configuração é da máquina
+# (/etc/kanata/kanata.kbd): o kanata pega o teclado de todo mundo.
+#
+# Desligada (revert), para o serviço e remove a unidade e a configuração;
+# a fórmula do kanata fica no Homebrew.
+#
+# Uso: just apply capslock
+- name: Caps Lock via kanata (evdev, toque=Esc / segurar=Ctrl)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [capslock]
+
+  vars:
+    feature_on: "{{ features['capslock'] | default(true) }}"
+
+  tasks:
+    - name: Instalar o kanata via Homebrew
+      community.general.homebrew:
+        name: kanata
+        path: "{{ homebrew_prefix }}/bin"
+        state: present
+      when: feature_on | bool
+
+    - name: Caps Lock via kanata
+      when: feature_on | bool
+      become: true
+      block:
+        - name: Garantir /etc/kanata
+          ansible.builtin.file:
+            path: "{{ kanata_config_dest | dirname }}"
+            state: directory
+            mode: "0755"
+
+        - name: Instalar a configuração do Caps Lock
+          ansible.builtin.copy:
+            src: kanata.kbd
+            dest: "{{ kanata_config_dest }}"
+            mode: "0644"
+          notify: restart kanata
+
+        - name: Instalar a unidade systemd do kanata
+          ansible.builtin.template:
+            src: kanata.service.j2
+            dest: "{{ kanata_systemd_unit }}"
+            owner: root
+            group: root
+            mode: "0644"
+          notify:
+            - reload systemd
+            - restart kanata
+
+        - name: Habilitar e iniciar o kanata
+          ansible.builtin.systemd:
+            name: kanata
+            daemon_reload: true
+            enabled: true
+            state: started
+
+    - name: Caps Lock de volta ao padrão
+      when: not feature_on | bool
+      become: true
+      block:
+        - name: Parar e desabilitar o kanata
+          ansible.builtin.systemd:
+            name: kanata
+            enabled: false
+            state: stopped
+          failed_when: false
+
+        - name: Remover a unidade e a configuração
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ kanata_systemd_unit }}"
+            - "{{ kanata_config_dest | dirname }}"
+          notify: reload systemd
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+      listen: reload systemd
+
+    - name: restart kanata
+      ansible.builtin.systemd:
+        name: kanata
+        state: restarted
+      become: true
+      listen: restart kanata

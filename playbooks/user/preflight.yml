@@ -1,0 +1,46 @@
+---
+# Confere as precondições da fase de usuário antes de qualquer play mexer
+# em algo: rodar como o usuário (não root, não sob run-empowered.sh), de
+# dentro da sessão gráfica dele (várias plays falam com o systemd --user e
+# com o dconf do GNOME). Importada primeiro por user.yml, sob qualquer tag.
+- name: Preflight da fase de usuário
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always]
+
+  tasks:
+    - name: Ler os grupos deste processo
+      ansible.builtin.command: id -nG
+      register: preflight_groups
+      changed_when: false
+
+    - name: Exigir rodar como o usuário, não root nem empowered
+      ansible.builtin.assert:
+        that:
+          - target_uid | int != 0
+          - "'empower' not in preflight_groups.stdout.split()"
+        fail_msg: >-
+          A fase de usuário roda como você, não como root nem sob
+          run-empowered.sh (nenhuma task aqui precisa de privilégio): rode
+          `just user`.
+        quiet: true
+
+    - name: Exigir uma sessão gráfica
+      ansible.builtin.assert:
+        that:
+          - lookup('ansible.builtin.env', 'DBUS_SESSION_BUS_ADDRESS') | length > 0
+          - lookup('ansible.builtin.env', 'XDG_RUNTIME_DIR') | length > 0
+        fail_msg: >-
+          Rode a fase de usuário de um terminal dentro da sua própria sessão
+          GNOME: as plays configuram o systemd --user e o dconf.
+        quiet: true
+
+    - name: Exigir a seleção de features resolvida
+      ansible.builtin.assert:
+        that: features_resolved | bool
+        fail_msg: >-
+          Rode a fase de usuário por `just user` (scripts/run-phase.sh), que
+          passa a seleção de features (features.yml + as suas escolhas de
+          `just configure`).
+        quiet: true

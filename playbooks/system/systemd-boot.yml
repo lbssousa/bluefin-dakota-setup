@@ -1,0 +1,153 @@
+---
+# systemd-boot — boot mais flicker-free: ajusta o loader.conf da ESP para o
+# menu não aparecer (timeout 0; segurar Espaço no boot ainda o abre), o
+# editor de cmdline ficar desligado e o systemd-boot manter o modo de
+# console que o firmware já configurou (console-mode keep), evitando a
+# troca de resolução que "pisca" entre firmware, bootloader e kernel. Se o
+# bootloader não for o systemd-boot, avisa e pula.
+#
+# No Dakota nem /boot nem /efi estão montados: a ESP é localizada pelo
+# GUID de tipo de partição, montada num diretório temporário e desmontada
+# ao final.
+#
+# De fora, deliberadamente: parâmetros de kernel (quiet, splash...). Numa
+# imagem bootc eles vêm da imagem/UKI (bootc kargs.d), não do loader.conf.
+#
+# Uso: just apply systemd-boot
+- name: systemd-boot — boot flicker-free (loader.conf)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  tags: [systemd-boot]
+
+  vars:
+    feature_on: "{{ features['systemd-boot'] | default(true) }}"
+    systemd_boot_loader_info_var: /sys/firmware/efi/efivars/LoaderInfo-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
+    systemd_boot_timeout_var: /sys/firmware/efi/efivars/LoaderConfigTimeout-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
+    systemd_boot_esp_parttype: c12a7328-f81f-11d2-ba4b-00a0c93ec93b
+
+  tasks:
+    - name: systemd-boot flicker-free
+      when: feature_on | bool
+      block:
+        - name: Ler o bootloader em uso (variável EFI LoaderInfo)
+          ansible.builtin.command: strings -el {{ systemd_boot_loader_info_var }}
+          register: systemd_boot_info
+          changed_when: false
+          failed_when: false
+
+        - name: Avisar e pular se o bootloader não for o systemd-boot
+          ansible.builtin.debug:
+            msg: >-
+              O bootloader atual não é o systemd-boot (LoaderInfo:
+              {{ systemd_boot_info.stdout | default('indisponível') | trim }}).
+              Nada a fazer.
+          when: "'systemd-boot' not in systemd_boot_info.stdout"
+
+        - name: Configurar o loader.conf da ESP
+          when: "'systemd-boot' in systemd_boot_info.stdout"
+          block:
+            - name: Procurar a ESP já montada
+              ansible.builtin.command: bootctl --print-esp-path
+              register: systemd_boot_esp_path
+              changed_when: false
+              failed_when: false
+
+            - name: Localizar a partição ESP pelo GUID de tipo (não montada)
+              ansible.builtin.shell: >-
+                set -o pipefail;
+                lsblk -nrpo PATH,PARTTYPE | awk '$2 == "{{ systemd_boot_esp_parttype }}" {print $1; exit}'
+              args:
+                executable: /bin/bash
+              register: systemd_boot_esp_dev
+              changed_when: false
+              when: systemd_boot_esp_path.rc != 0
+
+            - name: Falhar se nenhuma ESP for encontrada
+              ansible.builtin.fail:
+                msg: Não foi possível localizar a ESP (nem montada, nem por GUID de partição).
+              when:
+                - systemd_boot_esp_path.rc != 0
+                - systemd_boot_esp_dev.stdout | trim == ''
+
+            - name: Criar ponto de montagem temporário para a ESP
+              ansible.builtin.tempfile:
+                state: directory
+                prefix: esp.
+              register: systemd_boot_esp_tmp
+              when: systemd_boot_esp_path.rc != 0
+
+            - name: Definir o caminho efetivo da ESP
+              ansible.builtin.set_fact:
+                systemd_boot_esp: "{{ systemd_boot_esp_path.stdout | trim if systemd_boot_esp_path.rc == 0 else systemd_boot_esp_tmp.path }}"
+
+            - name: Montar a ESP temporariamente
+              ansible.builtin.command: mount {{ systemd_boot_esp_dev.stdout | trim }} {{ systemd_boot_esp }}
+              changed_when: true
+              when: systemd_boot_esp_path.rc != 0
+
+            - name: Garantir que /loader existe na ESP
+              ansible.builtin.file:
+                path: "{{ systemd_boot_esp }}/loader"
+                state: directory
+                mode: "0755"
+
+            # Backup manual, não `backup: true` do lineinfile: o nome com
+            # timestamp tem ":" e a ESP é FAT (Errno 22). Uma única cópia,
+            # do loader.conf original, nunca sobrescrita.
+            - name: Verificar se já existe um loader.conf
+              ansible.builtin.stat:
+                path: "{{ systemd_boot_esp }}/loader/loader.conf"
+              register: systemd_boot_conf_stat
+
+            - name: Guardar cópia do loader.conf original (uma vez só)
+              ansible.builtin.copy:
+                src: "{{ systemd_boot_esp }}/loader/loader.conf"
+                dest: "{{ systemd_boot_esp }}/loader/loader.conf.orig"
+                remote_src: true
+                force: false
+                mode: "0644"
+              when: systemd_boot_conf_stat.stat.exists
+
+            - name: Ajustar as chaves do loader.conf
+              ansible.builtin.lineinfile:
+                path: "{{ systemd_boot_esp }}/loader/loader.conf"
+                regexp: "^#?\\s*{{ item.key }}\\s"
+                line: "{{ item.key }} {{ item.value }}"
+                create: true
+                mode: "0644"
+              loop:
+                - { key: timeout, value: "{{ systemd_boot_timeout }}" }
+                - { key: console-mode, value: "{{ systemd_boot_console_mode }}" }
+                - { key: editor, value: "{{ systemd_boot_editor }}" }
+
+            # A variável EFI LoaderConfigTimeout (gravada pelo menu — teclas
+            # t/T — ou por `bootctl set-timeout`) tem PRIORIDADE sobre o
+            # `timeout` do loader.conf. Se existir, o menu continua
+            # aparecendo mesmo com timeout 0 no arquivo; removê-la devolve
+            # o controle ao loader.conf.
+            - name: Ler a variável EFI LoaderConfigTimeout (sobrepõe o loader.conf)
+              ansible.builtin.command: strings -el {{ systemd_boot_timeout_var }}
+              register: systemd_boot_timeout_efivar
+              changed_when: false
+              failed_when: false
+
+            - name: Remover a variável LoaderConfigTimeout para valer o loader.conf
+              ansible.builtin.command: bootctl set-timeout ""
+              changed_when: true
+              when: systemd_boot_timeout_efivar.rc == 0
+
+          always:
+            - name: Desmontar a ESP temporária
+              ansible.builtin.command: umount {{ systemd_boot_esp_tmp.path }}
+              changed_when: true
+              failed_when: false
+              when: systemd_boot_esp_tmp.path is defined
+
+            - name: Remover o ponto de montagem temporário
+              ansible.builtin.file:
+                path: "{{ systemd_boot_esp_tmp.path }}"
+                state: absent
+              failed_when: false
+              when: systemd_boot_esp_tmp.path is defined

@@ -1,0 +1,43 @@
+---
+# VSCode via snap (pacote "code", confinamento classic — o único em que é
+# publicado). O Dakota não traz snapd na imagem: provisioná-lo fica fora
+# do escopo; sem o binário `snap`, a play avisa e pula.
+#
+# Uso: just apply vscode
+- name: VSCode (snap)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [vscode]
+
+  vars:
+    feature_on: "{{ features['vscode'] | default(true) }}"
+
+  tasks:
+    - name: Verificar se o snap está disponível
+      ansible.builtin.command: which snap
+      register: vscode_snap_check
+      changed_when: false
+      failed_when: false
+      when: feature_on | bool
+
+    - name: Avisar que o snap não foi encontrado
+      ansible.builtin.debug:
+        msg: >-
+          PULADO: snap não encontrado no PATH. Provisione e habilite o snapd
+          e rode `just apply vscode`.
+      when: feature_on | bool and vscode_snap_check.rc != 0
+
+    # retries: o snap "code" é grande (~545MB, mais o core20) e o download
+    # da snap store falha com alguma frequência ("unexpected EOF"); o
+    # `snap install` recomeça do zero na tentativa seguinte.
+    - name: Instalar o VSCode via snap (classic)
+      community.general.snap:
+        name: "{{ vscode_snap_name }}"
+        classic: true
+      become: true
+      register: vscode_snap_install
+      until: vscode_snap_install is succeeded
+      retries: 3
+      delay: 15
+      when: feature_on | bool and vscode_snap_check.rc == 0

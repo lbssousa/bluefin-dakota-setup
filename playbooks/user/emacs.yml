@@ -1,0 +1,150 @@
+---
+# Emacs, parte de cada pessoa — a mesma configuração inicial do
+# lbssousa/omarchy-setup (playbooks/user/apps/emacs.yml de lá), sem a
+# integração com o Omarchy: AUCTeX, yasnippet e lsp-mode (emacs_packages,
+# pelo package.el em modo batch, `emacs -Q`, só os que faltam), o tema
+# "classic" (de emacs-jp/replace-colorthemes) e a fonte emacs_font_family.
+#
+# O init.el nunca é sobrescrito: tudo fica num bluefin-dakota-setup.el
+# gerenciado ao lado dele, carregado por um bloco acrescentado ao init.el.
+# Usa ~/.config/emacs; se existir ~/.emacs ou ~/.emacs.d, o Emacs ignora
+# esse diretório, e a play avisa. Sem o Emacs do snap (fase de sistema),
+# avisa e pula.
+#
+# Uso: just apply emacs
+- name: Emacs — AUCTeX, yasnippet, lsp-mode e o tema classic
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [emacs]
+
+  vars:
+    feature_on: "{{ features['emacs'] | default(true) }}"
+    emacs_config_dir: "{{ target_xdg_config_home }}/emacs"
+    # Nome antigo (bluefin-initial-setup) do .el gerenciado.
+    emacs_legacy_el: bluefin-initial-setup.el
+
+  tasks:
+    - name: Procurar o Emacs do snap
+      ansible.builtin.stat:
+        path: "{{ emacs_bin }}"
+      register: emacs_bin_stat
+      when: feature_on | bool
+
+    - name: Avisar que o Emacs não está instalado
+      ansible.builtin.debug:
+        msg: >-
+          PULADO: {{ emacs_bin }} não existe — o Emacs vem do snap, na fase
+          de sistema (`just system`, que precisa do snapd).
+      when: feature_on | bool and not emacs_bin_stat.stat.exists
+
+    - name: Configuração inicial do Emacs
+      when: feature_on | bool and emacs_bin_stat.stat.exists
+      block:
+        - name: Verificar se ~/.emacs ou ~/.emacs.d existem
+          ansible.builtin.stat:
+            path: "{{ target_home }}/{{ item }}"
+          loop: [.emacs, .emacs.el, .emacs.d]
+          register: emacs_legacy_init
+
+        - name: Avisar que o Emacs vai ignorar ~/.config/emacs
+          ansible.builtin.debug:
+            msg: >-
+              {{ emacs_legacy_init.results | selectattr('stat.exists')
+              | map(attribute='item') | map('regex_replace', '^', '~/') | join(', ') }}
+              existe(m): o Emacs usa esse init em vez de ~/.config/emacs, e a
+              configuração gerenciada aqui não será carregada. Mova-o(s) para
+              ~/.config/emacs para usá-la.
+          when: emacs_legacy_init.results | selectattr('stat.exists') | list | length > 0
+
+        - name: Criar o diretório de configuração e o de temas
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: directory
+            mode: "0755"
+          loop:
+            - "{{ emacs_config_dir }}"
+            - "{{ emacs_config_dir }}/themes"
+
+        - name: Descobrir quais pacotes Emacs faltam
+          ansible.builtin.command:
+            argv:
+              - "{{ emacs_bin }}"
+              - -Q
+              - --batch
+              - --eval
+              - >-
+                (progn (require 'package)
+                (setq package-user-dir "{{ emacs_config_dir }}/elpa")
+                (package-initialize)
+                (princ (mapconcat #'symbol-name
+                (seq-remove #'package-installed-p
+                '({{ emacs_packages | join(' ') }})) " ")))
+          register: emacs_packages_check
+          changed_when: false
+
+        - name: Instalar os pacotes Emacs que faltam ({{ emacs_packages | join(', ') }})
+          ansible.builtin.command:
+            argv:
+              - "{{ emacs_bin }}"
+              - -Q
+              - --batch
+              - --eval
+              - >-
+                (progn (require 'package)
+                (setq package-user-dir "{{ emacs_config_dir }}/elpa")
+                (setq package-archives
+                '({% for a in emacs_package_archives %}("{{ a.name }}" . "{{ a.url }}") {% endfor %}))
+                (package-initialize) (package-refresh-contents)
+                (dolist (p '({{ emacs_packages_check.stdout }})) (package-install p)))
+          when: emacs_packages_check.stdout | trim | length > 0
+
+        - name: Instalar o tema classic
+          ansible.builtin.copy:
+            src: emacs-classic-theme.el
+            dest: "{{ emacs_config_dir }}/themes/classic-theme.el"
+            mode: "0644"
+
+        - name: Instalar o bluefin-dakota-setup.el gerenciado
+          ansible.builtin.template:
+            src: emacs-bluefin-dakota-setup.el.j2
+            dest: "{{ emacs_config_dir }}/bluefin-dakota-setup.el"
+            mode: "0644"
+
+        - name: Carregar o bluefin-dakota-setup.el a partir do init.el
+          ansible.builtin.blockinfile:
+            path: "{{ emacs_config_dir }}/init.el"
+            create: true
+            mode: "0644"
+            marker: ";; {mark} bloco gerenciado pelo bluefin-dakota-setup"
+            block: |
+              (load (expand-file-name "bluefin-dakota-setup.el" user-emacs-directory) t)
+
+        # Migração: o bluefin-initial-setup carregava o próprio .el com outro
+        # bloco; os dois juntos aplicariam a configuração duas vezes.
+        - name: Remover o bloco do bluefin-initial-setup do init.el
+          ansible.builtin.blockinfile:
+            path: "{{ emacs_config_dir }}/init.el"
+            marker: ";; {mark} bloco gerenciado pelo bluefin-initial-setup"
+            state: absent
+
+        - name: Remover o .el do bluefin-initial-setup
+          ansible.builtin.file:
+            path: "{{ emacs_config_dir }}/{{ emacs_legacy_el }}"
+            state: absent
+
+        - name: Ler a primeira linha do init.el (cookie lexical-binding)
+          ansible.builtin.command:
+            argv: [head, -n1, "{{ emacs_config_dir }}/init.el"]
+          register: emacs_init_first_line
+          changed_when: false
+
+        # Emacs 30+ avisa quando um .el carregado não declara lexical-binding
+        # na primeira linha. Só insere se a linha não declarar nenhum
+        # (respeita um `nil` do usuário).
+        - name: Acrescentar o cookie lexical-binding no topo do init.el
+          ansible.builtin.lineinfile:
+            path: "{{ emacs_config_dir }}/init.el"
+            line: ";;; init.el ---  -*- lexical-binding: t; -*-"
+            insertbefore: BOF
+          when: "'lexical-binding:' not in emacs_init_first_line.stdout"

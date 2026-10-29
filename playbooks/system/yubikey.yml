@@ -1,0 +1,188 @@
+---
+# YubiKey, parte da máquina. O Dakota é GNOME OS — sem authselect, sem
+# banco RPM —, então o PAM é editado de forma localizada:
+#
+#   yubikey-pam    `auth sufficient pam_u2f.so cue nouserok` no
+#                  /etc/pam.d/system-auth, logo depois do pam_fprintd
+#                  (vale para sudo, login/GDM e polkit-1, que cobre pkexec e
+#                  run0). Ordem: digital, YubiKey, senha. "sufficient" +
+#                  "nouserok": tocar a YubiKey basta, mas sem ela conectada
+#                  (ou sem chaves registradas) o PAM cai para digital/senha —
+#                  sem risco de lockout. Cada usuário registra a própria
+#                  chave na fase de usuário (playbooks/user/yubikey.yml).
+#                  O pam_u2f.so e o pamu2fcfg já vêm na imagem; se faltarem,
+#                  avisa e pula.
+#   yubikey-pcscd  a YubiKey sumindo para o GnuPG até reiniciar o pcscd na
+#                  mão (bug do pcsc-lite, não do Dakota): drop-in com
+#                  `udevadm settle` (corrida com o udev no boot) e regra
+#                  udev que reinicia o pcscd ao conectar a YubiKey (replug,
+#                  troca de porta, volta da suspensão).
+#
+# Uso: just apply yubikey-pam yubikey-pcscd
+- name: YubiKey — pam_u2f no system-auth
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [yubikey-pam]
+
+  vars:
+    feature_on: "{{ features['yubikey-pam'] | default(true) }}"
+
+  tasks:
+    - name: Procurar o módulo pam_u2f.so
+      ansible.builtin.stat:
+        path: "{{ yubikey_pam_u2f_module }}"
+      register: yubikey_pam_u2f_stat
+      when: feature_on | bool
+
+    - name: Avisar e pular se o pam_u2f não estiver na imagem
+      ansible.builtin.debug:
+        msg: >-
+          PULADO: pam_u2f.so ({{ yubikey_pam_u2f_module }}) não encontrado.
+          A instalação do módulo fica fora desta automação.
+      when: feature_on | bool and not yubikey_pam_u2f_stat.stat.exists
+
+    - name: PAM — pam_u2f depois da digital (sudo/polkit-1/login)
+      become: true
+      when: feature_on | bool and yubikey_pam_u2f_stat.stat.exists
+      block:
+        # Migração do bluefin-initial-setup: as primeiras versões punham o
+        # pam_u2f ANTES do system-auth em sudo e polkit-1, as seguintes no
+        # system-auth com outro marcador. No Dakota o polkit-1 costuma
+        # morar só em /usr/lib/pam.d, e o blockinfile falha em arquivo
+        # inexistente — então só mexe nos que existem.
+        - name: Verificar quais arquivos PAM existem em /etc/pam.d
+          ansible.builtin.stat:
+            path: "/etc/pam.d/{{ item }}"
+          loop: [sudo, polkit-1, system-auth]
+          register: yubikey_pam_files
+
+        - name: Remover os blocos do bluefin-initial-setup
+          ansible.builtin.blockinfile:
+            path: "/etc/pam.d/{{ item.item }}"
+            marker: "{{ yubikey_pam_legacy_marker }}"
+            state: absent
+          loop: "{{ yubikey_pam_files.results }}"
+          loop_control:
+            label: "{{ item.item }}"
+          when: item.stat.exists
+
+        # `include` é atômico: a única forma de encaixar o pam_u2f entre o
+        # pam_fprintd e o pam_unix é editar o system-auth (arquivo local,
+        # sem cópia no vendordir), que sudo, polkit-1, login e GDM incluem.
+        # Limitação: o pam_fprintd só passa adiante depois de esgotar as
+        # tentativas/timeout.
+        - name: Adicionar o pam_u2f ao system-auth, logo depois do pam_fprintd
+          ansible.builtin.blockinfile:
+            path: /etc/pam.d/system-auth
+            marker: "{{ yubikey_pam_marker }}"
+            insertafter: '^auth\s+sufficient\s+pam_fprintd\.so'
+            block: "{{ yubikey_pam_u2f_line }}"
+            mode: "0644"
+
+        # O PAM do polkit não roda no pkexec: roda no
+        # polkit-agent-helper@.service (ativado por socket), cujo sandbox
+        # (PrivateDevices=yes, DevicePolicy=strict, ProtectHome=yes,
+        # RestrictAddressFamilies=AF_UNIX) esconde o /dev/hidraw* da
+        # YubiKey e o ~/.config/Yubico/u2f_keys — o pam_u2f falha calado e
+        # o PAM cai para digital/senha. O drop-in abre só o mínimo: hidraw,
+        # /dev/urandom e /dev/random (o desafio; sem eles, "Failed to
+        # generate challenge"), $HOME somente leitura e o AF_NETLINK que o
+        # libudev/libfido2 usam para enumerar.
+        - name: Garantir o diretório do drop-in do polkit-agent-helper
+          ansible.builtin.file:
+            path: "{{ yubikey_polkit_helper_dropin | dirname }}"
+            state: directory
+            mode: "0755"
+
+        - name: Liberar a YubiKey e o u2f_keys no sandbox do polkit-agent-helper
+          ansible.builtin.copy:
+            dest: "{{ yubikey_polkit_helper_dropin }}"
+            owner: root
+            group: root
+            mode: "0644"
+            content: |
+              # Gerenciado pelo bluefin-dakota-setup (feature yubikey-pam)
+              [Service]
+              PrivateDevices=no
+              DeviceAllow=char-hidraw rw
+              DeviceAllow=/dev/urandom r
+              DeviceAllow=/dev/random r
+              ProtectHome=read-only
+              RestrictAddressFamilies=AF_UNIX AF_NETLINK
+          notify: reload systemd
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+      listen: reload systemd
+
+- name: YubiKey — pcscd
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [yubikey-pcscd]
+
+  vars:
+    feature_on: "{{ features['yubikey-pcscd'] | default(true) }}"
+
+  tasks:
+    - name: pcscd — udev settle no boot e restart ao conectar a YubiKey
+      become: true
+      when: feature_on | bool
+      block:
+        - name: Garantir o diretório do drop-in do pcscd
+          ansible.builtin.file:
+            path: "{{ yubikey_pcscd_dropin | dirname }}"
+            state: directory
+            mode: "0755"
+
+        - name: Instalar o drop-in do pcscd
+          ansible.builtin.copy:
+            content: |
+              [Service]
+              ExecStartPre=/usr/bin/udevadm settle --timeout=5
+            dest: "{{ yubikey_pcscd_dropin }}"
+            mode: "0644"
+          notify:
+            - reload systemd
+            - restart pcscd
+
+        - name: Instalar a regra udev que reinicia o pcscd ao (re)conectar a YubiKey
+          ansible.builtin.template:
+            src: yubikey-pcscd-restart.rules.j2
+            dest: "{{ yubikey_pcscd_restart_udev_rule_dest }}"
+            owner: root
+            group: root
+            mode: "0644"
+          notify:
+            - reload udev rules
+            - trigger udev
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+      listen: reload systemd
+
+    - name: restart pcscd
+      ansible.builtin.systemd:
+        name: pcscd
+        state: restarted
+      become: true
+      listen: restart pcscd
+
+    - name: reload udev rules
+      ansible.builtin.command: udevadm control --reload-rules
+      changed_when: false
+      become: true
+      listen: reload udev rules
+
+    - name: trigger udev
+      ansible.builtin.command: udevadm trigger
+      changed_when: false
+      become: true
+      listen: trigger udev

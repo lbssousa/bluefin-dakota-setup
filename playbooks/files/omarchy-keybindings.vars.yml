@@ -1,0 +1,142 @@
+---
+# Dados da automação playbooks/user/omarchy-keybindings.yml — atalhos do GNOME
+# redefinidos para ficarem o mais próximos possível dos padrões do Omarchy
+# (default/hypr/bindings/*.lua, branch quattro / v4). A comparação completa,
+# com o que NÃO tem equivalente no GNOME, está em docs/omarchy-keybindings.md.
+#
+# Convenções:
+#   - `value` de lista = array de strings do GVariant ([] limpa o atalho);
+#     `value` string = GVariant literal ("true", "10", ...).
+#   - `ext`: UUID da extensão GNOME Shell dona do schema (o playbook acha o
+#     diretório de schemas dela); entradas cuja chave não existe são puladas.
+#   - Quando um atalho do Omarchy colide com um atalho já usado no GNOME, o
+#     atalho do GNOME é movido/limpo aqui (senão o mutter escolhe um dos dois
+#     de forma imprevisível).
+
+omarchy_gsettings:
+  # ── Janelas ───────────────────────────────────────────────────────────
+  # SUPER+W / SUPER+Q fecham a janela (Alt+F4 continua valendo)
+  - {schema: org.gnome.desktop.wm.keybindings, key: close, value: ['<Alt>F4', '<Super>q', '<Super>w']}
+  # SUPER+F tela cheia; SUPER+ALT+F "full width" ≈ maximizar
+  - {schema: org.gnome.desktop.wm.keybindings, key: toggle-fullscreen, value: ['<Super>f']}
+  - {schema: org.gnome.desktop.wm.keybindings, key: toggle-maximized, value: ['<Alt>F10', '<Super><Alt>f']}
+  # SUPER+O "pop out (float & pin)" ≈ fixar em todos os workspaces
+  - {schema: org.gnome.desktop.wm.keybindings, key: toggle-on-all-workspaces, value: ['<Super>o']}
+  - {schema: org.gnome.settings-daemon.plugins.media-keys, key: rotate-video-lock-static, value: ['XF86RotationLockToggle']}
+  # SUPER+T float/tiling ≈ "untile" do Tiling Shell
+  - {schema: org.gnome.shell.extensions.tilingshell, key: untile-window, value: ['<Super>t'], ext: tilingshell@ferrarodomenico.com}
+
+  # ── Foco / troca de janelas por direção (Tiling Shell) ────────────────
+  - {schema: org.gnome.shell.extensions.tilingshell, key: focus-window-left,  value: ['<Super>Left'],  ext: tilingshell@ferrarodomenico.com}
+  - {schema: org.gnome.shell.extensions.tilingshell, key: focus-window-right, value: ['<Super>Right'], ext: tilingshell@ferrarodomenico.com}
+  - {schema: org.gnome.shell.extensions.tilingshell, key: focus-window-up,    value: ['<Super>Up'],    ext: tilingshell@ferrarodomenico.com}
+  - {schema: org.gnome.shell.extensions.tilingshell, key: focus-window-down,  value: ['<Super>Down'],  ext: tilingshell@ferrarodomenico.com}
+  - {schema: org.gnome.shell.extensions.tilingshell, key: move-window-left,  value: ['<Super><Shift>Left'],  ext: tilingshell@ferrarodomenico.com}
+  - {schema: org.gnome.shell.extensions.tilingshell, key: move-window-right, value: ['<Super><Shift>Right'], ext: tilingshell@ferrarodomenico.com}
+  - {schema: org.gnome.shell.extensions.tilingshell, key: move-window-up,    value: ['<Super><Shift>Up'],    ext: tilingshell@ferrarodomenico.com}
+  - {schema: org.gnome.shell.extensions.tilingshell, key: move-window-down,  value: ['<Super><Shift>Down'],  ext: tilingshell@ferrarodomenico.com}
+  # SUPER+SHIFT+ALT+setas (mover workspace p/ monitor) ≈ mover janela p/ monitor
+  - {schema: org.gnome.desktop.wm.keybindings, key: move-to-monitor-left,  value: ['<Super><Shift><Alt>Left']}
+  - {schema: org.gnome.desktop.wm.keybindings, key: move-to-monitor-right, value: ['<Super><Shift><Alt>Right']}
+  - {schema: org.gnome.desktop.wm.keybindings, key: move-to-monitor-up,    value: ['<Super><Shift><Alt>Up']}
+  - {schema: org.gnome.desktop.wm.keybindings, key: move-to-monitor-down,  value: ['<Super><Shift><Alt>Down']}
+
+  # ── Alternância de janelas / workspaces ───────────────────────────────
+  # ALT+TAB = janelas (já é no GNOME); SUPER+TAB = próximo workspace
+  - {schema: org.gnome.desktop.wm.keybindings, key: switch-applications,          value: []}
+  - {schema: org.gnome.desktop.wm.keybindings, key: switch-applications-backward, value: []}
+  - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-right, value: ['<Super>Page_Down', '<Super>KP_Next', '<Super><Alt>Right', '<Control><Alt>Right', '<Super>Tab']}
+  - {schema: org.gnome.desktop.wm.keybindings, key: switch-to-workspace-left,  value: ['<Super>Page_Up', '<Super>KP_Prior', '<Super><Alt>Left', '<Control><Alt>Left', '<Super><Shift>Tab']}
+  - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-right, value: ['<Super><Shift>Page_Down', '<Super><Shift>KP_Next', '<Control><Shift><Alt>Right']}
+  - {schema: org.gnome.desktop.wm.keybindings, key: move-to-workspace-left,  value: ['<Super><Shift>Page_Up', '<Super><Shift>KP_Prior', '<Control><Shift><Alt>Left']}
+
+  # ── Launcher / menu ───────────────────────────────────────────────────
+  # SUPER+SPACE "Omarchy menu" ≈ Visão geral; SUPER+ALT+SPACE "Apps menu" ≈ grade de apps
+  - {schema: org.gnome.shell.keybindings, key: toggle-overview,         value: ['<Super>space']}
+  - {schema: org.gnome.shell.keybindings, key: toggle-application-view, value: ['<Super><Alt>space']}
+  # SUPER+L deixa de bloquear (no Omarchy o bloqueio é SUPER+CTRL+L)
+  - {schema: org.gnome.settings-daemon.plugins.media-keys, key: screensaver, value: ['<Super><Control>l']}
+  # SUPER+SHIFT+ALT+, "histórico de notificações" ≈ bandeja de mensagens
+  - {schema: org.gnome.shell.keybindings, key: toggle-message-tray, value: ['<Super><Shift><Alt>comma']}
+  # SUPER+CTRL+Z zoom / SUPER+CTRL+ALT+Z reset zoom ≈ lupa do GNOME
+  - {schema: org.gnome.settings-daemon.plugins.media-keys, key: magnifier-zoom-in, value: ['<Super><Control>z']}
+  - {schema: org.gnome.settings-daemon.plugins.media-keys, key: magnifier,         value: ['<Super><Control><Alt>z']}
+
+  # ── Captura ───────────────────────────────────────────────────────────
+  # PRINT já abre a UI de screenshot; ALT+PRINT = gravação de tela no Omarchy
+  - {schema: org.gnome.shell.keybindings, key: show-screen-recording-ui, value: ['<Ctrl><Shift><Alt>R', '<Alt>Print']}
+  - {schema: org.gnome.shell.keybindings, key: screenshot-window,        value: ['<Shift><Alt>Print']}
+
+# Workspaces SUPER+1..0 / SUPER+SHIFT+1..0 (Omarchy tem 10 fixos). Exige
+# workspaces estáticos; desligue com -e omarchy_keys_static_workspaces=false
+# (aí só os atalhos de app do dock/atalhos são limpos, sem tocar em workspaces).
+omarchy_keys_static_workspaces: true
+omarchy_workspace_count: 10
+
+# Dash to Dock usa SUPER+1..0 (apps do dock) e SUPER+Q (mostrar o dock):
+# colidem com workspaces e com "fechar janela" do Omarchy.
+omarchy_dash_to_dock:
+  - {schema: org.gnome.shell.extensions.dash-to-dock, key: hot-keys,  value: 'false', ext: dash-to-dock@micxgx.gmail.com}
+  - {schema: org.gnome.shell.extensions.dash-to-dock, key: shortcut,  value: [],      ext: dash-to-dock@micxgx.gmail.com}
+# GNOME Shell também usa SUPER+1..9 para ativar apps do dash.
+omarchy_shell_app_hotkeys_clear: true
+
+# ── Atalhos customizados (comandos) ───────────────────────────────────────
+# Gravados em media-keys/custom-keybindings/omarchy-<id>/ — nunca tocam nos
+# customN existentes. `check` (opcional) é um teste de shell: se falhar, o
+# atalho é pulado (app não instalado). Omarchy → equivalente aqui.
+omarchy_custom_keybindings:
+  - {id: terminal,         name: 'Omarchy: Terminal',        binding: '<Super>Return',           command: 'xdg-terminal-exec', check: 'command -v xdg-terminal-exec'}
+  - {id: tmux,             name: 'Omarchy: Tmux',            binding: '<Super><Alt>Return',      command: 'xdg-terminal-exec tmux', check: 'command -v tmux || test -x /home/linuxbrew/.linuxbrew/bin/tmux'}
+  - {id: browser,          name: 'Omarchy: Browser',         binding: '<Super><Shift>Return',    command: 'sh -c ''gtk-launch "$(xdg-mime query default x-scheme-handler/https)"'''}
+  - {id: browser-b,        name: 'Omarchy: Browser (B)',     binding: '<Super><Shift>b',         command: 'sh -c ''gtk-launch "$(xdg-mime query default x-scheme-handler/https)"'''}
+  - {id: files,            name: 'Omarchy: File manager',    binding: '<Super><Shift>f',         command: 'nautilus --new-window', check: 'command -v nautilus'}
+  - {id: editor,          name: 'Omarchy: Editor',          binding: '<Super><Shift>n',         command: 'xdg-terminal-exec nvim', check: 'command -v nvim || test -x /home/linuxbrew/.linuxbrew/bin/nvim'}
+  - {id: passwords,        name: 'Omarchy: Passwords',       binding: '<Super><Shift>slash',     command: 'flatpak run org.keepassxc.KeePassXC', check: 'flatpak info org.keepassxc.KeePassXC'}
+  - {id: calculator,       name: 'Omarchy: Calculator',      binding: '<Super><Control>q',       command: 'flatpak run org.gnome.Calculator', check: 'flatpak info org.gnome.Calculator'}
+  - {id: emojis,           name: 'Omarchy: Emojis',          binding: '<Super><Control>e',       command: 'flatpak run it.mijorus.smile', check: 'flatpak info it.mijorus.smile'}
+  - {id: activity,         name: 'Omarchy: Activity',        binding: '<Super><Control>t',       command: 'flatpak run io.missioncenter.MissionCenter', check: 'flatpak info io.missioncenter.MissionCenter'}
+  - {id: audio,            name: 'Omarchy: Audio',           binding: '<Super><Control>a',       command: 'gnome-control-center sound', check: 'command -v gnome-control-center'}
+  - {id: bluetooth,        name: 'Omarchy: Bluetooth',       binding: '<Super><Control>b',       command: 'gnome-control-center bluetooth', check: 'command -v gnome-control-center'}
+  - {id: display,          name: 'Omarchy: Display',         binding: '<Super><Control>d',       command: 'gnome-control-center display', check: 'command -v gnome-control-center'}
+  - {id: network,          name: 'Omarchy: Network',         binding: '<Super><Control>w',       command: 'gnome-control-center wifi', check: 'command -v gnome-control-center'}
+  - {id: power,            name: 'Omarchy: Power',           binding: '<Super><Control>p',       command: 'gnome-control-center power', check: 'command -v gnome-control-center'}
+  - {id: calendar,         name: 'Omarchy: Calendar',        binding: '<Super><Control><Alt>d',  command: 'flatpak run org.gnome.Calendar', check: 'flatpak info org.gnome.Calendar'}
+  - {id: world-clock,      name: 'Omarchy: World clock',     binding: '<Super><Control><Alt>e',  command: 'flatpak run org.gnome.clocks', check: 'flatpak info org.gnome.clocks'}
+  - {id: nightlight,       name: 'Omarchy: Toggle nightlight', binding: '<Super><Control>n',     command: 'sh -c ''s=org.gnome.settings-daemon.plugins.color; k=night-light-enabled; if [ "$(gsettings get $s $k)" = true ]; then gsettings set $s $k false; else gsettings set $s $k true; fi'''}
+
+# Webapps do Omarchy (SUPER+SHIFT+letra) — opt-in; abrem a URL no navegador
+# padrão (o Omarchy abre janela de "app"). Ative com
+# -e omarchy_keys_webapps=true.
+omarchy_keys_webapps: false
+omarchy_webapps:
+  - {id: chatgpt,   name: 'Omarchy: ChatGPT',   binding: '<Super><Shift>a', url: 'https://chatgpt.com'}
+  - {id: grok,      name: 'Omarchy: Grok',      binding: '<Super><Shift><Alt>a', url: 'https://grok.com'}
+  - {id: youtube,   name: 'Omarchy: YouTube',   binding: '<Super><Shift>y', url: 'https://youtube.com/'}
+  - {id: whatsapp,  name: 'Omarchy: WhatsApp',  binding: '<Super><Shift><Alt>g', url: 'https://web.whatsapp.com/'}
+  - {id: photos,    name: 'Omarchy: Google Photos', binding: '<Super><Shift>p', url: 'https://photos.google.com/'}
+  - {id: maps,      name: 'Omarchy: Google Maps', binding: '<Super><Shift>s', url: 'https://maps.google.com/'}
+  - {id: x,         name: 'Omarchy: X',         binding: '<Super><Shift>x', url: 'https://x.com/'}
+
+# ── Ghostty (terminal) ───────────────────────────────────────────────────
+# default/config/ghostty/config do Omarchy. Bloco gerenciado no final de
+# ~/.config/ghostty/config.ghostty (o F11 do Bluefin é mantido).
+omarchy_ghostty_keybinds:
+  - 'keybind = shift+insert=paste_from_clipboard'
+  - 'keybind = control+insert=copy_to_clipboard'
+  - 'keybind = shift+enter=csi:13;2u'
+  - 'keybind = alt+shift+enter=csi:13;4u'
+  - 'keybind = super+control+shift+alt+arrow_down=resize_split:down,100'
+  - 'keybind = super+control+shift+alt+arrow_up=resize_split:up,100'
+  - 'keybind = super+control+shift+alt+arrow_left=resize_split:left,100'
+  - 'keybind = super+control+shift+alt+arrow_right=resize_split:right,100'
+
+# Caminhos dconf salvos antes da 1ª aplicação (e restaurados pelo reset).
+omarchy_backup_paths:
+  - /org/gnome/desktop/wm/keybindings/
+  - /org/gnome/desktop/wm/preferences/
+  - /org/gnome/mutter/
+  - /org/gnome/shell/keybindings/
+  - /org/gnome/settings-daemon/plugins/media-keys/
+  - /org/gnome/shell/extensions/tilingshell/
+  - /org/gnome/shell/extensions/dash-to-dock/

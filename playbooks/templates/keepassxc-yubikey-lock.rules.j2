@@ -1,0 +1,12 @@
+# 70-keepassxc-yubikey-lock.rules — tranca o KeePassXC de cada sessão
+# aberta quando a YubiKey é removida. Instalado pelo bluefin-dakota-setup
+# (feature keepassxc-yubikey-lock) a partir de
+# keepassxc-yubikey-lock.rules.j2 — NÃO EDITE À MÃO, reescrito a cada
+# execução. Portado de lbssousa/nix-config
+# (modules/system/security/keepassxc-yubikey-lock.nix).
+#
+# ENV{PRODUCT}=="1050/*" casa qualquer modelo de YubiKey (vendor Yubico
+# 1050), não só o produto do nix-config original (1050/407). Em eventos
+# "remove" os atributos derivados (ID_VENDOR_ID etc.) costumam não estar
+# mais disponíveis; só o campo bruto PRODUCT é confiável nesse ponto.
+ACTION=="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{PRODUCT}=="1050/*", RUN+="/usr/bin/systemd-run --no-block --quiet --collect --service-type=oneshot {{ keepassxc_yubikey_lock_script_dest }}"

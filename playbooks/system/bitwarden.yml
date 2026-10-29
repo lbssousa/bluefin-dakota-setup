@@ -1,0 +1,62 @@
+---
+# Bitwarden, parte da máquina: o Flatpak (de sistema, do Flathub — um só
+# para todos os usuários) e a polkit action do desbloqueio biométrico, em
+# /usr/local/share/polkit-1/actions (o /usr é somente leitura). Depois de
+# aplicado, ative em Bitwarden > Configurações > Segurança > "Desbloquear
+# com autenticação do sistema". O agente SSH de cada pessoa fica em
+# playbooks/user/bitwarden.yml. Configuração de referência:
+# github.com/lbssousa/dotfiles (pacote stow "bitwarden").
+#
+# Opt-in (features.yml). Desligada, só para de ser gerenciada.
+#
+# Uso: just apply bitwarden
+- name: Bitwarden — Flatpak + polkit action
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [bitwarden]
+
+  vars:
+    feature_on: "{{ features['bitwarden'] | default(false) }}"
+
+  tasks:
+    - name: Bitwarden
+      when: feature_on | bool
+      become: true
+      block:
+        - name: Garantir o remote Flathub
+          community.general.flatpak_remote:
+            name: "{{ bitwarden_flatpak_remote }}"
+            flatpakrepo_url: https://flathub.org/repo/flathub.flatpakrepo
+            method: system
+            state: present
+
+        - name: Instalar o Bitwarden via Flatpak
+          community.general.flatpak:
+            name: "{{ bitwarden_flatpak_id }}"
+            remote: "{{ bitwarden_flatpak_remote }}"
+            method: system
+            state: present
+
+        - name: Garantir o diretório de polkit actions em /usr/local
+          ansible.builtin.file:
+            path: "{{ bitwarden_polkit_action_dest | dirname }}"
+            state: directory
+            mode: "0755"
+
+        - name: Instalar a polkit action do Bitwarden (desbloqueio biométrico)
+          ansible.builtin.copy:
+            src: com.bitwarden.Bitwarden.policy
+            dest: "{{ bitwarden_polkit_action_dest }}"
+            owner: root
+            group: root
+            mode: "0644"
+          notify: restart polkit
+
+  handlers:
+    - name: restart polkit
+      ansible.builtin.systemd:
+        name: polkit
+        state: restarted
+      become: true
+      listen: restart polkit

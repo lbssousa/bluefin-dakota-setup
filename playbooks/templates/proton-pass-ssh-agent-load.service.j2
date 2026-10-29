@@ -1,0 +1,17 @@
+[Unit]
+Description=Injeta as chaves SSH do cofre do Proton Pass no agente SSH ativo da sessao
+Documentation=https://protonpass.github.io/pass-cli/commands/ssh-agent/
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Redundante com ~/.config/environment.d/25-proton-pass-keyring.conf
+# (instalado pela mesma feature) — fixado aqui também para o
+# serviço não depender do timing de propagação do environment.d numa
+# sessão já ativa. Faz o pass-cli usar o Secret Service via D-Bus
+# (GNOME Keyring) em vez do kernel keyring, que é zerado a cada reboot.
+Environment=PROTON_PASS_LINUX_KEYRING={{ proton_pass_linux_keyring }}
+ExecStart={{ proton_pass_ssh_agent_load_script_dest }}
+
+[Install]
+WantedBy=default.target

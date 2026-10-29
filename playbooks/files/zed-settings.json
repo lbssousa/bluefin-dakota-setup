@@ -1,0 +1,6 @@
+// Runtime dos dev containers do Zed (https://zed.dev/docs/dev-containers).
+// Sem isso, o Zed tenta usar o Docker por padrão; no Bluefin/uBlue só o
+// Podman vem pré-instalado.
+{
+  "use_podman": true
+}

@@ -1,0 +1,67 @@
+---
+# Contas adicionais do computador, de extra_users — declaradas no
+# ~/.config/bluefin-dakota-setup/local.yml do administrador (fora do git:
+# login e nome completo são dados pessoais; modelo em
+# users/local.example.yml).
+#
+# Nenhuma senha é definida aqui: cada conta nova é marcada com
+# PasswordMode=1 via accountsservice, o mesmo mecanismo de Configurações >
+# Usuários > "Permitir que o usuário defina uma senha no próximo login" —
+# o GDM mostra a tela de definição de senha no primeiro login. A marcação
+# só vale na criação: rodar de novo não reseta a senha de quem já a
+# definiu. Contas fora da lista não são tocadas, e nenhuma é removida.
+#
+# Depois do primeiro login, cada pessoa aplica a própria parte com
+# `just user`, de um clone deste repositório.
+#
+# Uso: just users
+- name: Contas adicionais (extra_users)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [users]
+
+  vars:
+    feature_on: "{{ features['users'] | default(true) }}"
+
+  tasks:
+    - name: Contas adicionais
+      when: feature_on | bool and extra_users | length > 0
+      become: true
+      block:
+        - name: Verificar quais contas já existem
+          ansible.builtin.command: "id -u {{ item.username }}"
+          loop: "{{ extra_users }}"
+          loop_control:
+            label: "{{ item.username }}"
+          register: users_precheck
+          changed_when: false
+          failed_when: false
+
+        - name: Criar/atualizar as contas
+          ansible.builtin.user:
+            name: "{{ item.username }}"
+            comment: "{{ item.full_name }}"
+            groups: "{{ item.groups | default([]) }}"
+            append: true
+            shell: "{{ item.shell | default('/bin/bash') }}"
+            state: present
+          loop: "{{ extra_users }}"
+          loop_control:
+            label: "{{ item.username }}"
+
+        - name: Exigir a definição de senha no primeiro login (contas novas)
+          ansible.builtin.shell: |
+            set -euo pipefail
+            obj_path=$(busctl call org.freedesktop.Accounts \
+              /org/freedesktop/Accounts org.freedesktop.Accounts \
+              FindUserByName s '{{ item.item.username }}' | awk '{print $2}' | tr -d '"')
+            busctl call org.freedesktop.Accounts "$obj_path" \
+              org.freedesktop.Accounts.User SetPasswordMode i 1
+          args:
+            executable: /bin/bash
+          loop: "{{ users_precheck.results }}"
+          loop_control:
+            label: "{{ item.item.username }}"
+          when: item.rc != 0
+          changed_when: true

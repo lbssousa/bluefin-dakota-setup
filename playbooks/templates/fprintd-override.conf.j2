@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+# Faz o fprintd.service carregar o build goodix538d do libfprint a partir
+# de /usr/local (no Dakota, o link gravável para /var/usrlocal — veja
+# playbooks/system/libfprint.yml), sem tocar no LD_LIBRARY_PATH global do
+# sistema (/etc/ld.so.conf) nem no resto de /usr.
+[Service]
+Environment=LD_LIBRARY_PATH={{ libfprint_usrlocal_libdir }}

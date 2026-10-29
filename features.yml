@@ -1,0 +1,205 @@
+---
+# O catálogo de features: cada automação que este repositório aplica, o
+# que ela faz num Bluefin Dakota recém-instalado e se vem ligada por padrão.
+# Fonte única de `just configure` (scripts/configure.sh, o menu gum), de
+# scripts/run-phase.sh (quais plays rodam, quais revertem), de `just check`
+# e de docs/features.md (gerado a partir deste arquivo: `just docs`).
+#
+# As escolhas ficam em ~/.config/bluefin-dakota-setup/features.yml (gravado
+# por `just configure`); o que nunca foi escolhido segue o default abaixo.
+#
+# Cada id é a tag das plays que o implementam, nas duas fases.
+#   effect    adds / modifies / removes (em relação ao Dakota de fábrica) e o quê
+#   phases    system, user ou ambas
+#   default   ligada (true) ou desligada (false) até ser escolhida
+#   revert    true: desligar desfaz na próxima execução; false: desligar só
+#             para de gerenciar (o que já foi feito fica)
+#   requires  outros ids que precisam estar ligados
+#   hidden    sempre aplicada, fora do menu
+
+groups:
+  accounts: Contas
+  security: Autenticação e YubiKey
+  passwords: Gerenciadores de senha
+  desktop: Desktop
+  shell: Shell
+  dev: Editores e desenvolvimento
+  hardware: Boot e hardware
+  extras: Extras (opt-in)
+
+features:
+  - id: users
+    group: accounts
+    title: Contas adicionais
+    effect: adds as contas de extra_users (local.yml do administrador), com definição de senha no primeiro login (accountsservice PasswordMode=1)
+    phases: [system]
+    default: true
+    revert: false
+
+  - id: yubikey-pam
+    group: security
+    title: YubiKey no PAM
+    effect: modifies /etc/pam.d/system-auth (pam_u2f depois do pam_fprintd — digital, YubiKey, senha) e o sandbox do polkit-agent-helper; adds o registro da YubiKey em ~/.config/Yubico/u2f_keys
+    phases: [system, user]
+    default: true
+    revert: false
+
+  - id: yubikey-pcscd
+    group: security
+    title: pcscd enxergando a YubiKey
+    effect: adds um drop-in do pcscd (udevadm settle no boot) e uma regra udev que o reinicia quando a YubiKey é conectada
+    phases: [system]
+    default: true
+    revert: false
+
+  - id: gpg-yubikey
+    group: security
+    title: Chave GPG da YubiKey
+    effect: adds a chave pública OpenPGP do cartão ao keyring; modifies ~/.gitconfig (user.signingkey, commit/tag.gpgsign)
+    phases: [user]
+    default: false
+    revert: false
+
+  - id: keepassxc-yubikey-lock
+    group: security
+    title: Trava do KeePassXC ao remover a YubiKey
+    effect: adds uma regra udev e um script que trancam o KeePassXC de cada sessão aberta quando a YubiKey sai da porta USB
+    phases: [system]
+    default: true
+    revert: true
+
+  - id: ssh-askpass
+    group: security
+    title: ssh-askpass gráfico
+    effect: adds SSH_ASKPASS e SSH_ASKPASS_REQUIRE=prefer em ~/.config/environment.d (PIN/toque da chave FIDO2 sem terminal)
+    phases: [user]
+    default: true
+    revert: true
+
+  - id: bitwarden
+    group: passwords
+    title: Bitwarden
+    effect: adds o Flatpak, a polkit action do desbloqueio biométrico e o agente SSH da sessão; modifies gcr-ssh-agent (mascarado)
+    phases: [system, user]
+    default: false
+    revert: false
+
+  - id: proton-pass
+    group: passwords
+    title: Proton Pass CLI
+    effect: adds pass-cli (Homebrew) e um serviço systemd --user que injeta as chaves SSH do cofre no agente ativo
+    phases: [system, user]
+    default: false
+    revert: true
+
+  - id: keepassxc-browser
+    group: passwords
+    title: KeePassXC-Browser nos navegadores Flatpak
+    effect: adds o manifesto de native messaging e um wrapper flatpak-spawn em cada navegador Flatpak instalado; modifies o override do navegador (talk-name org.freedesktop.Flatpak)
+    phases: [user]
+    default: true
+    revert: true
+
+  - id: keepassxc-autostart
+    group: passwords
+    title: KeePassXC no login
+    effect: adds ~/.config/autostart/org.keepassxc.KeePassXC.desktop
+    phases: [user]
+    default: true
+    revert: true
+
+  - id: capslock
+    group: desktop
+    title: Caps Lock via kanata
+    effect: adds kanata (Homebrew) como serviço de sistema com /etc/kanata/kanata.kbd (toque = Esc, segurar = Ctrl, Shift+Caps Lock = Caps Lock)
+    phases: [system]
+    default: true
+    revert: true
+
+  - id: omarchy-keybindings
+    group: desktop
+    title: Atalhos no estilo Omarchy
+    effect: modifies os atalhos do GNOME (gsettings, Tiling Shell, Dash to Dock) e do Ghostty; desligar restaura o backup dconf
+    phases: [user]
+    default: false
+    revert: true
+
+  - id: bash-completion
+    group: shell
+    title: Readline estilo Fish
+    effect: modifies ~/.inputrc (completion case-insensitive, busca no histórico pelas setas)
+    phases: [user]
+    default: true
+    revert: false
+
+  - id: blesh
+    group: shell
+    title: ble.sh
+    effect: adds make/gawk (Homebrew) e o ble.sh em ~/.local (syntax highlighting, autosuggestions); modifies ~/.bashrc
+    phases: [system, user]
+    default: true
+    revert: false
+
+  - id: vscode
+    group: dev
+    title: VSCode (snap)
+    effect: adds o snap code (classic); pula se não houver snapd
+    phases: [system]
+    default: true
+    revert: false
+
+  - id: emacs
+    group: dev
+    title: Emacs (snap)
+    effect: adds o snap emacs (classic), AUCTeX, yasnippet, lsp-mode e o tema classic; modifies ~/.config/emacs/init.el (um bloco gerenciado)
+    phases: [system, user]
+    default: true
+    revert: false
+
+  - id: neovim
+    group: dev
+    title: Neovim + LazyVim
+    effect: adds o Neovim (Homebrew), o starter do LazyVim (se ~/.config/nvim não existir), o extra de LaTeX e o gregorio.nvim
+    phases: [system, user]
+    default: true
+    revert: false
+
+  - id: zed
+    group: dev
+    title: Zed com Podman
+    effect: adds ~/.config/zed/settings.json com use_podman (só se o arquivo ainda não existir)
+    phases: [user]
+    default: true
+    revert: false
+
+  - id: systemd-boot
+    group: hardware
+    title: systemd-boot sem menu
+    effect: modifies o loader.conf da ESP (timeout 0, console-mode keep, editor no); removes a variável EFI LoaderConfigTimeout
+    phases: [system]
+    default: true
+    revert: false
+
+  - id: libfprint
+    group: hardware
+    title: Leitor de digitais Goodix 538d
+    effect: adds o libfprint goodix538d em /usr/local (compilado num distrobox), a regra udev e um drop-in do fprintd.service
+    phases: [system]
+    default: false
+    revert: true
+
+  - id: printer
+    group: hardware
+    title: Impressora EPSON L4160
+    effect: adds a fila CUPS driverless da L4160 como impressora padrão
+    phases: [system]
+    default: false
+    revert: false
+
+  - id: rclone-gdrive
+    group: extras
+    title: Google Drive (rclone)
+    effect: adds rclone (Homebrew) e montagens do Google Drive (systemd --user)
+    phases: [system, user]
+    default: false
+    revert: false

@@ -1,0 +1,13 @@
+[Unit]
+Description=kanata - remapeamento de Caps Lock a nível evdev (tap=Esc, hold=Ctrl)
+Documentation=https://github.com/jtroo/kanata
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart={{ homebrew_prefix }}/bin/kanata --no-wait --cfg {{ kanata_config_dest }}
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

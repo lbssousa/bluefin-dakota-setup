@@ -1,0 +1,75 @@
+;;; bluefin-dakota-setup.el --- gerenciado pelo bluefin-dakota-setup (feature emacs)  -*- lexical-binding: t; -*-
+;; Edições aqui são sobrescritas na próxima execução; coloque suas
+;; próprias configurações no init.el.
+
+;;; Pacotes (AUCTeX e yasnippet vêm do GNU ELPA, lsp-mode do MELPA)
+(require 'package)
+{% for a in emacs_package_archives %}
+(add-to-list 'package-archives '("{{ a.name }}" . "{{ a.url }}") t)
+{% endfor %}
+(package-initialize)
+
+;;; yasnippet: snippets em todo lugar (TAB expande)
+(when (package-installed-p 'yasnippet)
+  (yas-global-mode 1))
+
+;;; lsp-mode: instalado, mas não iniciado automaticamente (o Eglot, nativo,
+;;; continua sendo o cliente padrão); use M-x lsp.
+(when (package-installed-p 'lsp-mode)
+  (setq lsp-keymap-prefix "C-c l"))
+
+;;; AUCTeX
+(when (package-installed-p 'auctex)
+  (require 'tex-site nil t)
+  (setq TeX-auto-save t
+        TeX-parse-self t
+        TeX-PDF-mode t
+        TeX-view-program-selection '((output-pdf "xdg-open"))
+        TeX-view-program-list '(("xdg-open" "xdg-open %o")))
+  (setq-default TeX-master nil)
+  (add-hook 'LaTeX-mode-hook #'LaTeX-math-mode)
+  (add-hook 'LaTeX-mode-hook #'turn-on-reftex)
+  (add-hook 'LaTeX-mode-hook #'visual-line-mode)
+  (setq reftex-plug-into-AUCTeX t)
+
+  ;; LuaLaTeX como engine padrão (comandos "LaTeX", preview-latex etc.).
+  (setq-default TeX-engine 'luatex)
+
+  ;; latexmk como comando padrão do C-c C-c. O "LaTeXMk" nativo do AUCTeX
+  ;; passa a engine na linha de comando (-pdflua, -pdf...), o que
+  ;; sobrepõe o $pdf_mode do .latexmkrc; esta versão não passa nenhuma, e
+  ;; a engine vem dos RCs do latexmk: o do projeto (./.latexmkrc), o do
+  ;; usuário (~/.latexmkrc ou ~/.config/latexmk/latexmkrc) ou, na falta
+  ;; deles, o de sistema (o do container de typesetting, se for ele que
+  ;; fornece o latexmk).
+  (with-eval-after-load 'tex
+    (setf (alist-get "LaTeXMk" TeX-command-list nil nil #'equal)
+          '("latexmk %(file-line-error) %(output-dir) %`%(extraopts) %S%(mode)%' %t"
+            TeX-run-TeX nil (LaTeX-mode docTeX-mode)
+            :help "Run latexmk (engine definida pelo .latexmkrc)")))
+  (add-hook 'LaTeX-mode-hook
+            (lambda () (setq TeX-command-default "LaTeXMk"))))
+
+;;; Tema classic (themes/classic-theme.el, de emacs-jp/replace-colorthemes)
+(menu-bar-mode 1)
+(when (fboundp 'tool-bar-mode) (tool-bar-mode -1))
+(when (fboundp 'scroll-bar-mode) (scroll-bar-mode -1))
+(setq inhibit-startup-screen t)
+
+;;; Fonte padrão: via default-frame-alist, vale também para frames criados
+;;; depois (emacsclient -c com o Emacs em modo daemon).
+(add-to-list 'default-frame-alist '(font . "{{ emacs_font_family }}-{{ emacs_font_size }}"))
+
+(add-to-list 'custom-theme-load-path
+             (expand-file-name "themes" user-emacs-directory))
+
+(defun bluefin-dakota-setup-apply-classic-theme ()
+  "Deixa `classic' como o único tema habilitado."
+  (interactive)
+  (mapc #'disable-theme custom-enabled-themes)
+  (load-theme 'classic t))
+
+(bluefin-dakota-setup-apply-classic-theme)
+
+(provide 'bluefin-dakota-setup)
+;;; bluefin-dakota-setup.el ends here

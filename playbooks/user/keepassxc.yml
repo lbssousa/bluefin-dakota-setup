@@ -1,0 +1,218 @@
+---
+# KeePassXC, parte de cada pessoa. A instalação do KeePassXC fica fora do
+# escopo: sem ele (Flatpak ou no PATH), as duas plays avisam e pulam.
+#
+#   keepassxc-browser    ponte de native messaging entre o Flatpak do
+#                        KeePassXC e os navegadores Flatpak, para a extensão
+#                        KeePassXC-Browser. Cada Flatpak só enxerga o próprio
+#                        ~/.var/app/<id>, então o manifesto e um wrapper
+#                        (keepassxc-proxy-host.sh, flatpak-spawn --host)
+#                        ficam DENTRO do diretório de cada navegador
+#                        instalado, que ganha o talk-name
+#                        org.freedesktop.Flatpak. Desligada (revert),
+#                        remove os três.
+#   keepassxc-autostart  o KeePassXC aberto no login: o Flatpak não cria o
+#                        ~/.config/autostart sozinho ("Iniciar com o
+#                        sistema" depende do portal Background). Desligada
+#                        (revert), remove o .desktop.
+#
+# Uso: just apply keepassxc-browser keepassxc-autostart
+- name: KeePassXC-Browser nos navegadores Flatpak
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [keepassxc-browser]
+
+  vars:
+    feature_on: "{{ features['keepassxc-browser'] | default(true) }}"
+
+  tasks:
+    - name: Verificar se o KeePassXC está instalado
+      ansible.builtin.shell: flatpak info {{ keepassxc_flatpak_id }} >/dev/null 2>&1 || command -v keepassxc
+      register: keepassxc_check
+      changed_when: false
+      failed_when: false
+
+    - name: Avisar que o KeePassXC não foi encontrado
+      ansible.builtin.debug:
+        msg: >-
+          PULADO: KeePassXC não encontrado (nem o Flatpak
+          {{ keepassxc_flatpak_id }}, nem no PATH). Instale-o e rode
+          `just apply keepassxc-browser`.
+      when: feature_on | bool and keepassxc_check.rc != 0
+
+    - name: Ver quais navegadores Flatpak suportados estão instalados
+      ansible.builtin.command: flatpak info {{ item.flatpak_id }}
+      register: keepassxc_browsers
+      changed_when: false
+      failed_when: false
+      loop: "{{ keepassxc_native_messaging_targets }}"
+      loop_control:
+        label: "{{ item.flatpak_id }}"
+
+    # Um block não aceita loop: as tasks abaixo repetem loop/when/vars.
+    - name: Garantir o diretório de dados do navegador
+      ansible.builtin.file:
+        path: "{{ keepassxc_proxy_host_dest | dirname }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ keepassxc_browsers.results }}"
+      loop_control:
+        label: "{{ item.item.flatpak_id }}"
+      when: feature_on | bool and keepassxc_check.rc == 0 and item.rc == 0
+      vars:
+        keepassxc_proxy_host_dest: "{{ target_home }}/.var/app/{{ item.item.flatpak_id }}/data/keepassxc-proxy-host"
+
+    - name: Instalar o wrapper flatpak-spawn (keepassxc-proxy-host)
+      ansible.builtin.copy:
+        src: keepassxc-proxy-host.sh
+        dest: "{{ keepassxc_proxy_host_dest }}"
+        mode: "0755"
+      loop: "{{ keepassxc_browsers.results }}"
+      loop_control:
+        label: "{{ item.item.flatpak_id }}"
+      when: feature_on | bool and keepassxc_check.rc == 0 and item.rc == 0
+      vars:
+        keepassxc_proxy_host_dest: "{{ target_home }}/.var/app/{{ item.item.flatpak_id }}/data/keepassxc-proxy-host"
+
+    - name: Garantir o diretório de native messaging hosts do navegador
+      ansible.builtin.file:
+        path: "{{ keepassxc_native_messaging_dir }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ keepassxc_browsers.results }}"
+      loop_control:
+        label: "{{ item.item.flatpak_id }}"
+      when: feature_on | bool and keepassxc_check.rc == 0 and item.rc == 0
+      vars:
+        keepassxc_native_messaging_dir: >-
+          {{ target_home }}/.var/app/{{ item.item.flatpak_id }}/{{
+          '.mozilla/native-messaging-hosts' if item.item.kind == 'firefox'
+          else 'config/' + item.item.vendor_dir + '/NativeMessagingHosts' }}
+
+    - name: Instalar o manifesto de native messaging
+      ansible.builtin.template:
+        src: org.keepassxc.keepassxc_browser.json.j2
+        dest: "{{ keepassxc_native_messaging_dir }}/{{ keepassxc_native_messaging_manifest_name }}"
+        mode: "0644"
+      loop: "{{ keepassxc_browsers.results }}"
+      loop_control:
+        label: "{{ item.item.flatpak_id }}"
+      when: feature_on | bool and keepassxc_check.rc == 0 and item.rc == 0
+      vars:
+        keepassxc_proxy_host_dest: "{{ target_home }}/.var/app/{{ item.item.flatpak_id }}/data/keepassxc-proxy-host"
+        keepassxc_native_messaging_dir: >-
+          {{ target_home }}/.var/app/{{ item.item.flatpak_id }}/{{
+          '.mozilla/native-messaging-hosts' if item.item.kind == 'firefox'
+          else 'config/' + item.item.vendor_dir + '/NativeMessagingHosts' }}
+        # Dentro do template, "item" seria o resultado do precheck.
+        keepassxc_browser_kind: "{{ item.item.kind }}"
+
+    - name: Ler os overrides do navegador
+      ansible.builtin.command: flatpak override --user --show {{ item.item.flatpak_id }}
+      register: keepassxc_overrides
+      changed_when: false
+      loop: "{{ keepassxc_browsers.results }}"
+      loop_control:
+        label: "{{ item.item.flatpak_id }}"
+      when: item.rc == 0
+
+    - name: Conceder o talk-name org.freedesktop.Flatpak (flatpak-spawn --host)
+      ansible.builtin.command: >-
+        flatpak override --user --talk-name=org.freedesktop.Flatpak {{ item.item.item.flatpak_id }}
+      loop: "{{ keepassxc_overrides.results }}"
+      loop_control:
+        label: "{{ item.item.item.flatpak_id }}"
+      when: >-
+        feature_on | bool and keepassxc_check.rc == 0 and item is not skipped and
+        'org.freedesktop.Flatpak=talk' not in item.stdout
+      changed_when: true
+
+    - name: Remover o wrapper
+      ansible.builtin.file:
+        path: "{{ target_home }}/.var/app/{{ item.item.flatpak_id }}/data/keepassxc-proxy-host"
+        state: absent
+      loop: "{{ keepassxc_browsers.results }}"
+      loop_control:
+        label: "{{ item.item.flatpak_id }}"
+      when: not feature_on | bool and item.rc == 0
+
+    - name: Remover o manifesto
+      ansible.builtin.file:
+        path: "{{ keepassxc_native_messaging_dir }}/{{ keepassxc_native_messaging_manifest_name }}"
+        state: absent
+      loop: "{{ keepassxc_browsers.results }}"
+      loop_control:
+        label: "{{ item.item.flatpak_id }}"
+      when: not feature_on | bool and item.rc == 0
+      vars:
+        keepassxc_native_messaging_dir: >-
+          {{ target_home }}/.var/app/{{ item.item.flatpak_id }}/{{
+          '.mozilla/native-messaging-hosts' if item.item.kind == 'firefox'
+          else 'config/' + item.item.vendor_dir + '/NativeMessagingHosts' }}
+
+    - name: Revogar o talk-name org.freedesktop.Flatpak
+      ansible.builtin.command: >-
+        flatpak override --user --no-talk-name=org.freedesktop.Flatpak {{ item.item.item.flatpak_id }}
+      loop: "{{ keepassxc_overrides.results }}"
+      loop_control:
+        label: "{{ item.item.item.flatpak_id }}"
+      when: >-
+        not feature_on | bool and item is not skipped and
+        'org.freedesktop.Flatpak=talk' in item.stdout
+      changed_when: true
+
+- name: KeePassXC no login
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [keepassxc-autostart]
+
+  vars:
+    feature_on: "{{ features['keepassxc-autostart'] | default(true) }}"
+
+  tasks:
+    - name: Verificar se o KeePassXC está instalado (Flatpak)
+      ansible.builtin.command: flatpak info {{ keepassxc_flatpak_id }}
+      register: keepassxc_flatpak_check
+      changed_when: false
+      failed_when: false
+      when: feature_on | bool
+
+    - name: Verificar se o KeePassXC está instalado (PATH)
+      ansible.builtin.command: which keepassxc
+      register: keepassxc_bin_check
+      changed_when: false
+      failed_when: false
+      when: feature_on | bool
+
+    - name: Autostart do KeePassXC
+      when: feature_on | bool and (keepassxc_flatpak_check.rc == 0 or keepassxc_bin_check.rc == 0)
+      block:
+        - name: Garantir ~/.config/autostart
+          ansible.builtin.file:
+            path: "{{ keepassxc_autostart_desktop | dirname }}"
+            state: directory
+            mode: "0755"
+
+        - name: Instalar o .desktop de autostart
+          ansible.builtin.copy:
+            dest: "{{ keepassxc_autostart_desktop }}"
+            mode: "0644"
+            content: |
+              [Desktop Entry]
+              Type=Application
+              Name=KeePassXC
+              Comment=Gerenciador de senhas
+              Icon={{ keepassxc_flatpak_id }}
+              Exec={{ '/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=keepassxc ' ~ keepassxc_flatpak_id
+                      if keepassxc_flatpak_check.rc == 0 else 'keepassxc' }}
+              Terminal=false
+              X-GNOME-Autostart-enabled=true
+              # Gerenciado pelo bluefin-dakota-setup (feature keepassxc-autostart)
+
+    - name: Remover o autostart do KeePassXC
+      ansible.builtin.file:
+        path: "{{ keepassxc_autostart_desktop }}"
+        state: absent
+      when: not feature_on | bool

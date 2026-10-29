@@ -1,0 +1,157 @@
+---
+# YubiKey, parte de cada pessoa:
+#
+#   yubikey-pam  registra a sua YubiKey em ~/.config/Yubico/u2f_keys
+#                (pamu2fcfg), para o pam_u2f que a fase de sistema pôs no
+#                system-auth. Pede para inserir a chave e o PIN FIDO2 só se
+#                ainda não houver registro.
+#   gpg-yubikey  importa a chave pública OpenPGP do cartão para o seu keyring
+#                (gpg --card-status / --edit-card fetch) e configura o git
+#                para assinar commits e tags com ela. Opt-in: exige a YubiKey
+#                conectada.
+#
+# Uso: just apply yubikey-pam | just apply gpg-yubikey
+- name: YubiKey — registro para o pam_u2f
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [yubikey-pam]
+
+  vars:
+    feature_on: "{{ features['yubikey-pam'] | default(true) }}"
+
+  tasks:
+    - name: Verificar se o pamu2fcfg está disponível
+      ansible.builtin.command: which pamu2fcfg
+      register: yubikey_pamu2fcfg_check
+      changed_when: false
+      failed_when: false
+      when: feature_on | bool
+
+    - name: Avisar e pular sem o pamu2fcfg
+      ansible.builtin.debug:
+        msg: "PULADO: pamu2fcfg não encontrado — a imagem não traz o pam_u2f."
+      when: feature_on | bool and yubikey_pamu2fcfg_check.rc != 0
+
+    - name: Registro da YubiKey
+      when: feature_on | bool and yubikey_pamu2fcfg_check.rc == 0
+      block:
+        # Arquivo vazio conta como "não registrado": uma tentativa que falhou
+        # antes não pode fazer as próximas execuções pularem o registro.
+        - name: Verificar se já existe arquivo de chaves U2F
+          ansible.builtin.stat:
+            path: "{{ yubikey_u2f_keys }}"
+          register: yubikey_keys_stat
+
+        - name: Definir se falta registrar a YubiKey
+          ansible.builtin.set_fact:
+            yubikey_needs_enroll: "{{ not yubikey_keys_stat.stat.exists or yubikey_keys_stat.stat.size == 0 }}"
+
+        - name: Pedir para inserir a YubiKey
+          ansible.builtin.pause:
+            prompt: "Insira sua YubiKey na porta USB e pressione Enter para continuar"
+          when: yubikey_needs_enroll
+
+        # Sob o Ansible o pamu2fcfg não tem terminal para pedir o PIN FIDO2
+        # (falha com FIDO_ERR_INVALID_ARGUMENT): o PIN é lido aqui, sem eco,
+        # e entregue pelo stdin. Sem PIN na chave, deixe em branco.
+        - name: Pedir o PIN FIDO2 da YubiKey (Enter se não houver PIN)
+          ansible.builtin.pause:
+            prompt: "PIN FIDO2 da YubiKey"
+            echo: false
+          register: yubikey_pin_prompt
+          when: yubikey_needs_enroll
+
+        - name: Garantir ~/.config/Yubico
+          ansible.builtin.file:
+            path: "{{ yubikey_u2f_keys | dirname }}"
+            state: directory
+            mode: "0755"
+          when: yubikey_needs_enroll
+
+        # Grava num temporário e só então move: nunca deixa um u2f_keys
+        # vazio ou parcial se o pamu2fcfg falhar.
+        - name: Registrar a YubiKey (toque a chave quando o LED piscar)
+          ansible.builtin.shell: |
+            set -e
+            tmp=$(mktemp "{{ yubikey_u2f_keys }}.XXXXXX")
+            trap 'rm -f "$tmp"' EXIT
+            printf '%s\n' "$YUBIKEY_PIN" | pamu2fcfg > "$tmp"
+            test -s "$tmp"
+            mv "$tmp" "{{ yubikey_u2f_keys }}"
+          args:
+            executable: /bin/bash
+          environment:
+            YUBIKEY_PIN: "{{ yubikey_pin_prompt.user_input | default('') }}"
+          no_log: true
+          changed_when: true
+          when: yubikey_needs_enroll
+
+- name: YubiKey — chave GPG e assinatura no git
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [gpg-yubikey]
+
+  vars:
+    feature_on: "{{ features['gpg-yubikey'] | default(false) }}"
+
+  tasks:
+    - name: Importar a chave pública OpenPGP do cartão
+      when: feature_on | bool
+      block:
+        - name: Ler o cartão OpenPGP da YubiKey (gpg --card-status)
+          ansible.builtin.command: gpg --card-status
+          register: yubikey_card_status
+          changed_when: false
+          failed_when: false
+
+        - name: Falhar com orientação se nenhum cartão for detectado
+          ansible.builtin.fail:
+            msg: >-
+              Nenhum cartão OpenPGP detectado (gpg --card-status falhou).
+              Insira a YubiKey e rode `just apply gpg-yubikey`.
+          when: yubikey_card_status.rc != 0
+
+        # O rótulo vem preenchido com pontos até o ":" ("Signature key
+        # ....: XXXX"), daí [.\s]*; o trecho é extraído sem grupo de
+        # captura (que faria o regex_search devolver uma lista) e o rótulo
+        # removido depois.
+        - name: Extrair o fingerprint da chave de assinatura
+          ansible.builtin.set_fact:
+            yubikey_gpg_fingerprint: >-
+              {{ (yubikey_card_status.stdout
+                  | regex_search('Signature key[.\s]*:\s*[0-9A-F ]+')
+                  | default('', true))
+                 | regex_replace('^Signature key[.\s]*:\s*', '')
+                 | replace(' ', '') }}
+
+        - name: Falhar se o fingerprint não for legível
+          ansible.builtin.fail:
+            msg: >-
+              gpg --card-status não trouxe uma "Signature key" legível.
+              Confira `gpg --card-status` antes de repetir.
+          when: yubikey_gpg_fingerprint | length == 0
+
+        - name: Verificar se a chave já está no keyring
+          ansible.builtin.command: "gpg --list-keys {{ yubikey_gpg_fingerprint }}"
+          register: yubikey_gpg_list
+          changed_when: false
+          failed_when: false
+
+        # --no-tty: sem ele o gpg tenta abrir /dev/tty para o prompt "gpg>"
+        # e falha sob o Ansible. "fetch" não pede PIN.
+        - name: Importar a chave pública do cartão (gpg --edit-card fetch)
+          ansible.builtin.shell: echo fetch | gpg --no-tty --command-fd=0 --status-fd=1 --edit-card
+          changed_when: true
+          when: yubikey_gpg_list.rc != 0
+
+        - name: Assinar commits e tags do git com a chave da YubiKey
+          community.general.git_config:
+            name: "{{ item.name }}"
+            scope: global
+            value: "{{ item.value }}"
+          loop:
+            - { name: user.signingkey, value: "{{ yubikey_gpg_fingerprint }}" }
+            - { name: commit.gpgsign, value: "true" }
+            - { name: tag.gpgsign, value: "true" }

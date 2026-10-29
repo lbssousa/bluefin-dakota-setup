@@ -1,0 +1,60 @@
+---
+# Impressora EPSON L4160 — fila CUPS driverless (IPP Everywhere, `lpadmin -m
+# everywhere`), sem o driver ESC/P-R da Epson: o filtro CUPS dele não teria
+# como ser alcançado pelo cupsd fora do /usr somente leitura. O cupsd
+# consulta as capacidades da impressora via IPP na hora de imprimir.
+#
+# Estrutura da fila inspirada em lbssousa/nix-config
+# (modules/system/hardware/printing.nix): URI resolvida por hostname mDNS
+# (em vez de dnssd:// ou implicitclass://, que podem ser instáveis) e
+# printer-error-policy=abort-job, para uma falha num job não travar a fila.
+#
+# Opt-in (features.yml).
+#
+# Uso: just apply printer
+- name: Impressora EPSON L4160 (driverless)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [printer]
+
+  vars:
+    feature_on: "{{ features['printer'] | default(false) }}"
+
+  tasks:
+    - name: Impressora EPSON L4160
+      when: feature_on | bool
+      become: true
+      block:
+        - name: Garantir que o CUPS (lpadmin) está disponível
+          ansible.builtin.command: which lpadmin
+          changed_when: false
+
+        - name: Ler a fila atual da L4160
+          ansible.builtin.command: "lpstat -v {{ printer_l4160_name }}"
+          register: printer_l4160_current
+          changed_when: false
+          failed_when: false
+
+        - name: Configurar a fila da L4160 via IPP Everywhere
+          ansible.builtin.command: >-
+            lpadmin -p {{ printer_l4160_name }} -E
+            -v {{ printer_l4160_device_uri }}
+            -m everywhere
+            -L "{{ printer_l4160_location }}"
+            -D "{{ printer_l4160_description }}"
+            -o printer-error-policy={{ printer_l4160_error_policy }}
+          changed_when: printer_l4160_device_uri not in printer_l4160_current.stdout
+
+        - name: Ler a impressora padrão do sistema
+          ansible.builtin.command: lpstat -d
+          register: printer_default_current
+          changed_when: false
+          failed_when: false
+
+        - name: Definir a L4160 como impressora padrão do sistema
+          ansible.builtin.command: "lpadmin -d {{ printer_l4160_name }}"
+          changed_when: true
+          when:
+            - printer_l4160_set_default
+            - printer_l4160_name not in printer_default_current.stdout

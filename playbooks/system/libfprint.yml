@@ -1,0 +1,301 @@
+---
+# libfprint goodix538d (leitor de digitais Goodix 27c6:538d): o fork
+# github.com/lbssousa/libfprint, compilado num container distrobox
+# descartável (playbooks/files/libfprint-distrobox.ini, imagem Fedora
+# toolbox — containers não dependem do host) e instalado só em /usr/local
+# (no Dakota, o link gravável para /var/usrlocal), numa regra udev em /etc
+# e num drop-in do fprintd.service. O resto de /usr nunca é escrito. O
+# matcher SIGFM do fork é C puro (sem OpenCV): nenhuma dependência de
+# runtime fora do sistema.
+#
+# Opt-in (features.yml): só faz sentido em máquinas com esse leitor.
+# Desligada (revert), remove o que uma instalação anterior deixou em
+# /usr/local, a regra udev e o drop-in — e não faz nada se não houver
+# instalação.
+#
+# Uso: just apply libfprint
+- name: libfprint goodix538d — build em distrobox + instalação em /usr/local
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  gather_subset: [min, selinux]
+  tags: [libfprint]
+
+  vars:
+    feature_on: "{{ features['libfprint'] | default(false) }}"
+    libfprint_files:
+      - "{{ libfprint_usrlocal_libdir }}/libfprint-2.so.2.0.0"
+      - "{{ libfprint_usrlocal_libdir }}/libfprint-2.so.2"
+      - "{{ libfprint_usrlocal_libdir }}/libfprint-2.so"
+      - "{{ libfprint_usrlocal_libdir }}/pkgconfig/libfprint-2.pc"
+      - "{{ libfprint_usrlocal_libdir }}/girepository-1.0/FPrint-2.0.typelib"
+      - "{{ libfprint_usrlocal_prefix }}/include/libfprint-2"
+      - "{{ libfprint_usrlocal_prefix }}/share/gir-1.0/FPrint-2.0.gir"
+      - "{{ libfprint_usrlocal_prefix }}/share/gtk-doc/html/libfprint-2"
+      - "{{ libfprint_usrlocal_prefix }}/share/metainfo/org.freedesktop.libfprint.metainfo.xml"
+
+  # O distrobox (assemble/enter) recusa rodar com SUDO_USER ou DOAS_USER
+  # definidos, e o run0 --empower (run-empowered.sh) exporta SUDO_USER & cia.
+  # para o processo inteiro. O distrobox só testa `-n`: string vazia basta.
+  environment:
+    SUDO_USER: ""
+    SUDO_UID: ""
+    SUDO_GID: ""
+    SUDO_COMMAND: ""
+    DOAS_USER: ""
+
+  tasks:
+    - name: Instalar o libfprint goodix538d
+      when: feature_on | bool
+      block:
+        - name: Garantir que o distrobox está disponível
+          ansible.builtin.command: distrobox --version
+          changed_when: false
+
+        # A presença do fprintd.service ainda não está documentada no
+        # Dakota: falhar cedo em vez de descobrir depois de compilar tudo.
+        - name: Garantir que a unidade fprintd.service existe
+          ansible.builtin.command: systemctl list-unit-files fprintd.service
+          register: libfprint_fprintd_unit
+          changed_when: false
+          failed_when: "'fprintd.service' not in libfprint_fprintd_unit.stdout"
+
+        - name: Criar o container distrobox de build (dependências em libfprint-distrobox.ini)
+          ansible.builtin.command:
+            cmd: distrobox assemble create --file {{ (playbook_dir ~ '/files/libfprint-distrobox.ini') | quote }}
+          register: libfprint_assemble
+          changed_when: "'already exists' not in libfprint_assemble.stderr"
+
+        # Sem libfprint_ref, a tag mais recente do fork (ordem de versão do
+        # git: v1.94.10-goodix538d.2 vem depois de v1.94.10-goodix538d).
+        - name: Descobrir a tag mais recente do fork
+          ansible.builtin.command: >-
+            git ls-remote --tags --refs --sort=-v:refname {{ libfprint_repo }}
+          register: libfprint_remote_tags
+          changed_when: false
+          when: libfprint_ref | length == 0
+
+        - name: Definir a ref a compilar
+          ansible.builtin.set_fact:
+            libfprint_build_ref: >-
+              {{ libfprint_ref if libfprint_ref | length > 0
+                 else libfprint_remote_tags.stdout_lines[0].split('refs/tags/')[1] }}
+
+        - name: Informar a ref escolhida
+          ansible.builtin.debug:
+            msg: "libfprint: compilando {{ libfprint_build_ref }}"
+
+        # O checkout fica no host; o container só compila (o $HOME dele é o
+        # mesmo do host).
+        - name: Clonar/atualizar o fork
+          ansible.builtin.git:
+            repo: "{{ libfprint_repo }}"
+            dest: "{{ libfprint_checkout_dir }}"
+            version: "{{ libfprint_build_ref }}"
+            force: false
+          register: libfprint_git
+
+        - name: Verificar se o build já está configurado
+          ansible.builtin.stat:
+            path: "{{ libfprint_checkout_dir }}/builddir/build.ninja"
+          register: libfprint_builddir
+
+        # Mudar libfprint_usrlocal_prefix não invalida sozinho um builddir
+        # já configurado: sem esta leitura, o `ninja install` instalaria de
+        # novo no prefixo antigo.
+        - name: Ler o prefixo do build existente
+          ansible.builtin.slurp:
+            src: "{{ libfprint_checkout_dir }}/builddir/meson-info/intro-buildoptions.json"
+          register: libfprint_buildoptions
+          when: libfprint_builddir.stat.exists
+
+        - name: Guardar o prefixo configurado
+          ansible.builtin.set_fact:
+            libfprint_configured_prefix: >-
+              {{ (libfprint_buildoptions.content | b64decode | from_json
+                  | selectattr('name', 'equalto', 'prefix')
+                  | map(attribute='value') | list | first) | default('', true) }}
+          when: libfprint_builddir.stat.exists
+
+        - name: Configurar o build (meson setup)
+          ansible.builtin.command: >-
+            distrobox enter {{ libfprint_container_name }} -- bash -c
+            "cd {{ libfprint_checkout_dir }} &&
+            meson setup builddir --prefix={{ libfprint_usrlocal_prefix }} -Ddrivers=all"
+          when: not libfprint_builddir.stat.exists
+
+        - name: Reconfigurar se o código ou o prefixo mudou
+          ansible.builtin.command: >-
+            distrobox enter {{ libfprint_container_name }} -- bash -c
+            "cd {{ libfprint_checkout_dir }} &&
+            meson setup builddir --prefix={{ libfprint_usrlocal_prefix }} -Ddrivers=all --reconfigure"
+          when: >-
+            libfprint_builddir.stat.exists and
+            (libfprint_git.changed or libfprint_configured_prefix != libfprint_usrlocal_prefix)
+
+        - name: Compilar (ninja)
+          ansible.builtin.command: >-
+            distrobox enter {{ libfprint_container_name }} -- bash -c
+            "ninja -C {{ libfprint_checkout_dir }}/builddir"
+          register: libfprint_ninja
+          changed_when: "'ninja: no work to do.' not in libfprint_ninja.stdout"
+
+        - name: Stage da instalação (DESTDIR)
+          ansible.builtin.command: >-
+            distrobox enter {{ libfprint_container_name }} -- bash -c
+            "rm -rf {{ libfprint_stage_dir }} &&
+            DESTDIR={{ libfprint_stage_dir }} ninja -C {{ libfprint_checkout_dir }}/builddir install"
+          changed_when: true
+
+        - name: Conferir que as dependências da lib resolvem no host
+          ansible.builtin.shell: >-
+            ! ldd {{ libfprint_stage_dir }}{{ libfprint_usrlocal_libdir }}/libfprint-2.so.2.0.0
+            | grep -q "not found"
+          changed_when: false
+
+        - name: Instalação no host
+          become: true
+          block:
+            - name: Garantir os diretórios de destino em /usr/local
+              ansible.builtin.file:
+                path: "{{ item }}"
+                state: directory
+                mode: "0755"
+              loop:
+                - "{{ libfprint_usrlocal_libdir }}"
+                - "{{ libfprint_usrlocal_prefix }}/include"
+                - "{{ libfprint_usrlocal_prefix }}/share"
+
+            # cp -a, não ansible.builtin.copy: o copy com remote_src perde os
+            # links libfprint-2.so{,.2}, e sem o soname libfprint-2.so.2 o
+            # fprintd carrega a libfprint do sistema (sem o goodix538d).
+            - name: Copiar lib, headers, pkgconfig e gir/typelib para /usr/local
+              ansible.builtin.command:
+                cmd: cp -a {{ libfprint_stage_dir }}{{ libfprint_usrlocal_prefix }}/{{ item }}/. {{ libfprint_usrlocal_prefix }}/{{ item }}/
+              changed_when: true
+              loop: [lib64, include, share]
+
+            - name: Atualizar o cache do linker
+              ansible.builtin.command: ldconfig
+              changed_when: false
+
+            # Arquivos vindos do $HOME (stage) herdam user_home_t. Se o
+            # Dakota usar SELinux com um domínio confinado para o fprintd,
+            # é preciso lib_t; sem SELinux, nada a fazer.
+            - name: Contexto SELinux de /usr/local/lib64
+              community.general.sefcontext:
+                target: "{{ libfprint_usrlocal_libdir }}(/.*)?"
+                setype: lib_t
+                state: present
+              when: ansible_facts.selinux.status | default('disabled') == 'enabled'
+
+            - name: Aplicar o contexto SELinux (restorecon)
+              ansible.builtin.command: restorecon -Rv {{ libfprint_usrlocal_libdir }}
+              changed_when: true
+              when: ansible_facts.selinux.status | default('disabled') == 'enabled'
+
+            - name: Instalar a regra udev
+              ansible.builtin.copy:
+                src: "{{ libfprint_stage_dir }}/usr/lib/udev/rules.d/70-libfprint-2.rules"
+                dest: "{{ libfprint_udev_rule }}"
+                remote_src: true
+                mode: "0644"
+              notify: reload udev rules
+
+            - name: Garantir o diretório do drop-in do fprintd.service
+              ansible.builtin.file:
+                path: "{{ libfprint_fprintd_dropin | dirname }}"
+                state: directory
+                mode: "0755"
+
+            - name: Apontar o fprintd.service para /usr/local
+              ansible.builtin.template:
+                src: fprintd-override.conf.j2
+                dest: "{{ libfprint_fprintd_dropin }}"
+                mode: "0644"
+              notify:
+                - reload systemd
+                - restart fprintd
+
+    - name: Remover o libfprint goodix538d
+      when: not feature_on | bool
+      become: true
+      block:
+        - name: Procurar uma instalação anterior
+          ansible.builtin.stat:
+            path: "{{ libfprint_fprintd_dropin }}"
+          register: libfprint_installed
+
+        - name: Remover a instalação
+          when: libfprint_installed.stat.exists
+          block:
+            - name: Remover o drop-in do fprintd.service e a regra udev
+              ansible.builtin.file:
+                path: "{{ item }}"
+                state: absent
+              loop:
+                - "{{ libfprint_fprintd_dropin }}"
+                - "{{ libfprint_udev_rule }}"
+              notify:
+                - reload systemd
+                - reload udev rules
+                - restart fprintd
+
+            - name: Remover lib, headers, pkgconfig e gir/typelib de /usr/local
+              ansible.builtin.file:
+                path: "{{ item }}"
+                state: absent
+              loop: "{{ libfprint_files }}"
+
+            # Instalações antigas (bluefin-initial-setup) vendorizavam libs do
+            # Homebrew (OpenCV & cia.) aqui; o fork não precisa mais delas.
+            - name: Localizar libs do Homebrew vendorizadas
+              ansible.builtin.find:
+                paths: "{{ libfprint_usrlocal_libdir }}"
+                patterns:
+                  - "libopencv_*.so*"
+                  - "libopenblas*.so*"
+                  - "libtbb*.so*"
+                  - "libgfortran*.so*"
+                  - "libgomp*.so*"
+              register: libfprint_vendored
+
+            - name: Remover libs do Homebrew vendorizadas
+              ansible.builtin.file:
+                path: "{{ item.path }}"
+                state: absent
+              loop: "{{ libfprint_vendored.files }}"
+              loop_control:
+                label: "{{ item.path }}"
+
+            - name: Remover a regra de contexto SELinux de /usr/local/lib64
+              community.general.sefcontext:
+                target: "{{ libfprint_usrlocal_libdir }}(/.*)?"
+                setype: lib_t
+                state: absent
+              when: ansible_facts.selinux.status | default('disabled') == 'enabled'
+
+            - name: Atualizar o cache do linker
+              ansible.builtin.command: ldconfig
+              changed_when: false
+
+  handlers:
+    - name: reload udev rules
+      ansible.builtin.command: udevadm control --reload-rules
+      changed_when: false
+      become: true
+      listen: reload udev rules
+
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+      listen: reload systemd
+
+    - name: restart fprintd
+      ansible.builtin.systemd:
+        name: fprintd.service
+        state: restarted
+      become: true
+      failed_when: false
+      listen: restart fprintd

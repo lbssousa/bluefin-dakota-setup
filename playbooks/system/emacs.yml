@@ -1,0 +1,42 @@
+---
+# GNU Emacs via snap (pacote "emacs", confinamento classic). Os pacotes
+# (AUCTeX, yasnippet, lsp-mode) e a configuração inicial de cada pessoa
+# ficam em playbooks/user/emacs.yml. Mesmo pressuposto do VSCode: sem o
+# binário `snap`, avisa e pula.
+#
+# Uso: just apply emacs
+- name: Emacs (snap)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [emacs]
+
+  vars:
+    feature_on: "{{ features['emacs'] | default(true) }}"
+
+  tasks:
+    - name: Verificar se o snap está disponível
+      ansible.builtin.command: which snap
+      register: emacs_snap_check
+      changed_when: false
+      failed_when: false
+      when: feature_on | bool
+
+    - name: Avisar que o snap não foi encontrado
+      ansible.builtin.debug:
+        msg: >-
+          PULADO: snap não encontrado no PATH. Provisione e habilite o snapd
+          e rode `just apply emacs`.
+      when: feature_on | bool and emacs_snap_check.rc != 0
+
+    # retries: mesmo motivo de playbooks/system/vscode.yml.
+    - name: Instalar o Emacs via snap (classic)
+      community.general.snap:
+        name: "{{ emacs_snap_name }}"
+        classic: true
+      become: true
+      register: emacs_snap_install
+      until: emacs_snap_install is succeeded
+      retries: 3
+      delay: 15
+      when: feature_on | bool and emacs_snap_check.rc == 0

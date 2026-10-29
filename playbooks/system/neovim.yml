@@ -1,0 +1,21 @@
+---
+# Neovim via Homebrew, no PATH de todo mundo. O LazyVim de cada pessoa fica
+# em playbooks/user/neovim.yml.
+#
+# Uso: just apply neovim
+- name: Neovim (Homebrew)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [neovim]
+
+  vars:
+    feature_on: "{{ features['neovim'] | default(true) }}"
+
+  tasks:
+    - name: Instalar o Neovim via Homebrew
+      community.general.homebrew:
+        name: neovim
+        path: "{{ homebrew_prefix }}/bin"
+        state: present
+      when: feature_on | bool

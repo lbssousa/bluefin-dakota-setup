@@ -1,0 +1,65 @@
+---
+# LazyVim, parte de cada pessoa (o Neovim vem do Homebrew, na fase de
+# sistema). Se ~/.config/nvim ainda não existir, clona o starter oficial do
+# LazyVim e apaga o histórico git do template (recomendação oficial:
+# lazyvim.org/installation). Uma config já existente nunca é sobrescrita.
+#
+# Também põe em lua/plugins/, só se o arquivo ainda não existir (force:
+# false — o lbssousa/dotfiles tem versões próprias sob os mesmos nomes):
+#   - extras.lua: o extra de LaTeX do LazyVim (lang.tex). Precisa de uma
+#     distribuição LaTeX e, para LSP, do texlab no PATH — nenhum dos dois é
+#     instalado aqui.
+#   - gregorio.lua: AISCGre-BR/gregorio.nvim, notação gregoriana GABC/NABC
+#     (carregado com ft = "gabc").
+#
+# Uso: just apply neovim
+- name: LazyVim (configuração inicial)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [neovim]
+
+  vars:
+    feature_on: "{{ features['neovim'] | default(true) }}"
+
+  tasks:
+    - name: LazyVim
+      when: feature_on | bool
+      block:
+        - name: Verificar se já existe configuração do Neovim
+          ansible.builtin.stat:
+            path: "{{ nvim_config_dir }}"
+          register: nvim_config_stat
+
+        - name: Clonar o starter do LazyVim
+          ansible.builtin.git:
+            repo: "{{ lazyvim_starter_repo }}"
+            dest: "{{ nvim_config_dir }}"
+            depth: 1
+          when: not nvim_config_stat.stat.exists
+
+        - name: Remover o histórico git do starter
+          ansible.builtin.file:
+            path: "{{ nvim_config_dir }}/.git"
+            state: absent
+          when: not nvim_config_stat.stat.exists
+
+        - name: Garantir lua/plugins
+          ansible.builtin.file:
+            path: "{{ nvim_config_dir }}/lua/plugins"
+            state: directory
+            mode: "0755"
+
+        - name: Habilitar o extra do LazyVim para LaTeX
+          ansible.builtin.copy:
+            src: nvim-extras.lua
+            dest: "{{ nvim_config_dir }}/lua/plugins/extras.lua"
+            mode: "0644"
+            force: false
+
+        - name: Instalar o plugin gregorio.nvim
+          ansible.builtin.copy:
+            src: nvim-gregorio.lua
+            dest: "{{ nvim_config_dir }}/lua/plugins/gregorio.lua"
+            mode: "0644"
+            force: false

@@ -1,0 +1,11 @@
+---
+# Todas as automações: a fase de sistema e depois a de usuário de quem
+# roda. É o que `just setup` faz para um administrador configurando a
+# própria conta; os demais usuários rodam só `just user`.
+#
+# Uso: just setup (que roda system.yml e user.yml por scripts/run-phase.sh)
+- name: Fase de sistema
+  ansible.builtin.import_playbook: system.yml
+
+- name: Fase de usuário
+  ansible.builtin.import_playbook: user.yml

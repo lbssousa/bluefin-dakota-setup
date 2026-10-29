@@ -1,0 +1,89 @@
+---
+# KeePassXC trancado quando a YubiKey sai da porta USB: uma regra udev
+# ("remove", vendor Yubico 1050 — qualquer modelo) chama um script que
+# tranca as bases do KeePassXC em cada sessão aberta, via D-Bus
+# (org.keepassxc.KeePassXC.MainWindow.lockAllDatabases). Portado de
+# lbssousa/nix-config (modules/system/security/keepassxc-yubikey-lock.nix).
+#
+# É da máquina, não de uma pessoa: o script percorre todas as sessões em
+# /run/user, então vale para todo usuário com o KeePassXC aberto. Se o
+# KeePassXC não estiver instalado (Flatpak de sistema ou no PATH), avisa e
+# pula. A instalação dele fica fora do escopo; a integração D-Bus vem
+# ligada por padrão (Ferramentas > Configurações > Geral).
+#
+# Desligada (revert), remove a regra e o script.
+#
+# Uso: just apply keepassxc-yubikey-lock
+- name: KeePassXC — trancar ao remover a YubiKey
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [keepassxc-yubikey-lock]
+
+  vars:
+    feature_on: "{{ features['keepassxc-yubikey-lock'] | default(true) }}"
+
+  tasks:
+    - name: Verificar se o KeePassXC está instalado
+      ansible.builtin.shell: flatpak info {{ keepassxc_flatpak_id }} >/dev/null 2>&1 || command -v keepassxc
+      register: keepassxc_check
+      changed_when: false
+      failed_when: false
+      when: feature_on | bool
+
+    - name: Avisar que o KeePassXC não foi encontrado
+      ansible.builtin.debug:
+        msg: >-
+          PULADO: KeePassXC não encontrado (nem o Flatpak
+          {{ keepassxc_flatpak_id }}, nem no PATH). Instale-o e rode
+          `just apply keepassxc-yubikey-lock`.
+      when: feature_on | bool and keepassxc_check.rc != 0
+
+    - name: Instalar a regra udev e o script
+      become: true
+      when: feature_on | bool and keepassxc_check.rc == 0
+      block:
+        - name: Garantir o diretório do script
+          ansible.builtin.file:
+            path: "{{ keepassxc_yubikey_lock_script_dest | dirname }}"
+            state: directory
+            mode: "0755"
+
+        - name: Instalar o script de trava via D-Bus
+          ansible.builtin.copy:
+            src: keepassxc-yubikey-lock.sh
+            dest: "{{ keepassxc_yubikey_lock_script_dest }}"
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Instalar a regra udev (dispara na remoção da YubiKey)
+          ansible.builtin.template:
+            src: keepassxc-yubikey-lock.rules.j2
+            dest: "{{ keepassxc_yubikey_lock_udev_rule_dest }}"
+            owner: root
+            group: root
+            mode: "0644"
+          notify: reload udev rules
+
+    - name: Remover a regra udev e o script
+      become: true
+      when: not feature_on | bool
+      block:
+        - name: Remover a regra udev
+          ansible.builtin.file:
+            path: "{{ keepassxc_yubikey_lock_udev_rule_dest }}"
+            state: absent
+          notify: reload udev rules
+
+        - name: Remover o script
+          ansible.builtin.file:
+            path: "{{ keepassxc_yubikey_lock_script_dest }}"
+            state: absent
+
+  handlers:
+    - name: reload udev rules
+      ansible.builtin.command: udevadm control --reload-rules
+      changed_when: false
+      become: true
+      listen: reload udev rules

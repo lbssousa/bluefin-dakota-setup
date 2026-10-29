@@ -1,0 +1,41 @@
+[Unit]
+Description=rclone: Remote FUSE filesystem for Google Drive (%i)
+Documentation=man:rclone(1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+EnvironmentFile=%h/.config/systemd/user/rclone-google-drive@%i.env
+EnvironmentFile=%h/.config/rclone/google-drive-email.env
+
+# O --log-file do rclone não cria o diretório pai: sem isto, numa máquina
+# nova o mount morre com "Failed to open log file".
+ExecStartPre=/usr/bin/mkdir -p "%h/.cache/rclone"
+ExecStartPre=-/usr/bin/mkdir -p "%h/${GOOGLE_DRIVE_BASE}/${GOOGLE_DRIVE_EMAIL}/${MOUNT_DIR}"
+
+# $$ é o escape do systemd para um $ literal: quem expande é o bash, então
+# GOOGLE_DRIVE_BASE ("Público/Google Drive") e MOUNT_DIR ("Shared with Me") mantém os espaços.
+ExecStart=/usr/bin/bash -c 'exec {{ rclone_bin }} mount \
+  --config="{{ rclone_gdrive_config_file }}" \
+  --cache-dir="$$HOME/.cache/rclone/vfs/$$CACHE_SLUG" \
+  --dir-cache-time 5000h \
+  --poll-interval 10s \
+  --vfs-cache-mode writes \
+  --vfs-cache-max-size 10G \
+  --vfs-read-chunk-size 120M \
+  --vfs-read-ahead 1G \
+  --vfs-cache-max-age 5000h \
+  --bwlimit-file 100M \
+  --log-level INFO \
+  --log-file "$$HOME/.cache/rclone/google-drive-%i.log" \
+  --umask 022 \
+  $$EXTRA_FLAGS \
+  "{{ rclone_gdrive_remote }}:" "$$HOME/$$GOOGLE_DRIVE_BASE/$$GOOGLE_DRIVE_EMAIL/$$MOUNT_DIR"'
+
+ExecStop=/usr/bin/fusermount3 -uz "%h/${GOOGLE_DRIVE_BASE}/${GOOGLE_DRIVE_EMAIL}/${MOUNT_DIR}"
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

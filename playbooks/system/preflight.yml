@@ -1,0 +1,19 @@
+---
+# Roda primeiro na fase de sistema, quaisquer que sejam as tags: a seleção
+# de features precisa ter vindo por scripts/run-phase.sh — sem ela, toda
+# feature com revert contaria como desligada e seria desfeita.
+- name: Preflight da fase de sistema
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always]
+
+  tasks:
+    - name: Exigir a seleção de features resolvida
+      ansible.builtin.assert:
+        that: features_resolved | bool
+        fail_msg: >-
+          Rode a fase de sistema por `just system` / `just setup`
+          (scripts/run-phase.sh), que passa a seleção de features
+          (features.yml + as escolhas de `just configure`).
+        quiet: true

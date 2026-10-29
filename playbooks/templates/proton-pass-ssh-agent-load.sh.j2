@@ -1,0 +1,30 @@
+#!/bin/sh
+# Gerado pelo bluefin-dakota-setup (feature proton-pass) — não edite à mão,
+# as mudanças seriam sobrescritas na próxima execução.
+#
+# Espera (poll de 1s, até {{ proton_pass_ssh_agent_wait_seconds }}s) um
+# agente SSH ativo — SSH_AUTH_SOCK apontando para um socket que já
+# existe — antes de injetar as chaves SSH do cofre do Proton Pass nele
+# via `pass-cli ssh-agent load`. Esse subcomando usa o agente JÁ ATIVO
+# da sessão (Bitwarden, ssh-agent, gcr-ssh-agent, gpg-agent
+# --enable-ssh-support etc.), diferente de `ssh-agent start`, que faria
+# o pass-cli rodar como agente próprio e disputar com o do Bitwarden.
+#
+# Sem essa espera, este script — disparado no início da sessão
+# systemd --user — poderia rodar antes do agente da sessão subir (ex.: o
+# Bitwarden só cria o socket quando o app abre). Se o tempo esgotar,
+# avisa e sai sem erro.
+set -eu
+
+tries=0
+max_tries={{ proton_pass_ssh_agent_wait_seconds }}
+while [ -z "${SSH_AUTH_SOCK:-}" ] || [ ! -S "$SSH_AUTH_SOCK" ]; do
+    tries=$((tries + 1))
+    if [ "$tries" -ge "$max_tries" ]; then
+        echo "Nenhum agente SSH ativo (SSH_AUTH_SOCK) após ${max_tries}s — pulando a injeção das chaves SSH do Proton Pass." >&2
+        exit 0
+    fi
+    sleep 1
+done
+
+exec {{ homebrew_prefix }}/bin/pass-cli ssh-agent load

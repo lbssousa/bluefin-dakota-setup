@@ -1,0 +1,12 @@
+{# {{ ansible_managed }} — instalado pelo bluefin-dakota-setup (feature keepassxc-browser) #}
+{
+    "name": "org.keepassxc.keepassxc_browser",
+    "description": "KeePassXC integration with native messaging support",
+    "path": "{{ keepassxc_proxy_host_dest }}",
+    "type": "stdio",
+{% if keepassxc_browser_kind == 'firefox' %}
+    "allowed_extensions": ["{{ keepassxc_browser_extension_firefox_id }}"]
+{% else %}
+    "allowed_origins": ["chrome-extension://{{ keepassxc_browser_extension_chrome_id }}/"]
+{% endif %}
+}

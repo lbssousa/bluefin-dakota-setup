@@ -1,0 +1,50 @@
+---
+# Zed — Podman como runtime de dev containers
+# (zed.dev/docs/dev-containers): sem "use_podman": true o Zed tenta o
+# Docker, e no Dakota só o Podman vem instalado. O Zed em si vem do `ujust`
+# da imagem.
+#
+# Só cria ~/.config/zed/settings.json se ele ainda não existir: o arquivo
+# acumula preferências pessoais (tema, fonte, keybindings), e o
+# lbssousa/dotfiles (pacote stow "zed") pode já gerenciá-lo.
+#
+# Uso: just apply zed
+- name: Zed — Podman como runtime de dev containers
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [zed]
+
+  vars:
+    feature_on: "{{ features['zed'] | default(true) }}"
+    zed_settings: "{{ target_xdg_config_home }}/zed/settings.json"
+
+  tasks:
+    - name: Zed com Podman
+      when: feature_on | bool
+      block:
+        - name: Verificar se o Podman está disponível
+          ansible.builtin.command: which podman
+          register: zed_podman_check
+          changed_when: false
+          failed_when: false
+
+        - name: Avisar e pular sem o Podman
+          ansible.builtin.debug:
+            msg: "PULADO: podman não encontrado no PATH."
+          when: zed_podman_check.rc != 0
+
+        - name: Garantir ~/.config/zed
+          ansible.builtin.file:
+            path: "{{ zed_settings | dirname }}"
+            state: directory
+            mode: "0755"
+          when: zed_podman_check.rc == 0
+
+        - name: Configurar o Podman como runtime de dev containers
+          ansible.builtin.copy:
+            src: zed-settings.json
+            dest: "{{ zed_settings }}"
+            mode: "0644"
+            force: false
+          when: zed_podman_check.rc == 0
