@@ -145,11 +145,12 @@ kanata_systemd_unit: /etc/systemd/system/kanata.service
 # (playbooks/system/gdm-worker-watchdog.yml). Uma tela de bloqueio normal usa
 # um worker por serviço PAM (senha, digital, smartcard...); acima de
 # max_surplus, por duas leituras seguidas a cada interval segundos, o excesso
-# morre. A partir de saturation, perto do limite de 256 conexões de root no
-# barramento de sistema, morrem todos os que não são líderes de sessão.
+# morre. A partir de saturation, já na primeira leitura, morrem todos os que
+# não são líderes de sessão: cada worker usa cerca de 2 conexões, então o limite
+# de 256 conexões de root no barramento de sistema chega em uns 115 workers.
 gdm_worker_watchdog_max_surplus: 16
-gdm_worker_watchdog_saturation: 200
-gdm_worker_watchdog_interval: 5
+gdm_worker_watchdog_saturation: 60
+gdm_worker_watchdog_interval: 2
 # Para depurar: acima de watch_above, cada mudança na contagem vai para o
 # journal. Cada enxurrada grava um diretório de diagnóstico em log_dir (só
 # root), no máximo um a cada snapshot_every segundos, e ficam os snapshot_keep

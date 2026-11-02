@@ -13,8 +13,10 @@
 # Sem nenhum líder conhecido, não mata nada.
 #
 # Dos demais, fica o mais novo de cada serviço PAM em cada sessão, o que o
-# prompt deve estar usando. A partir de saturation não fica nenhum: os mais
-# novos já nasceram sem barramento e não servem para mostrar o prompt.
+# prompt deve estar usando. A partir de saturation não fica nenhum e não se
+# espera outra leitura: cada worker usa cerca de 2 conexões, então o limite
+# chega em uns 115 workers, a rajada anda a uns 20 por segundo e os mais novos
+# logo nascem sem barramento, sem servir para mostrar o prompt.
 #
 # Para depurar depois: o journal da unidade traz a subida da contagem e cada
 # ação; cada enxurrada grava, ANTES de matar, um diretório em log_dir:
@@ -30,8 +32,8 @@
 set -uo pipefail
 
 max_surplus=${GDM_WORKER_WATCHDOG_MAX_SURPLUS:-16}
-saturation=${GDM_WORKER_WATCHDOG_SATURATION:-200}
-interval=${GDM_WORKER_WATCHDOG_INTERVAL:-5}
+saturation=${GDM_WORKER_WATCHDOG_SATURATION:-60}
+interval=${GDM_WORKER_WATCHDOG_INTERVAL:-2}
 term_grace=${GDM_WORKER_WATCHDOG_TERM_GRACE:-3}
 dry_run=${GDM_WORKER_WATCHDOG_DRY_RUN:-0}
 sessions_dir=${GDM_WORKER_WATCHDOG_SESSIONS_DIR:-/run/systemd/sessions}
@@ -235,8 +237,8 @@ while true; do
         over=0
         continue
     fi
-    # Um pico de uma só leitura não é enxurrada.
-    if ((++over < 2)); then
+    # Um pico de uma só leitura não é enxurrada, a não ser que já seja grande.
+    if ((${#surplus[@]} < saturation && ++over < 2)); then
         continue
     fi
     over=0
