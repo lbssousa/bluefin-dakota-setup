@@ -37,7 +37,7 @@ desfaz na próxima execução; senão, desligar só para de gerenciar.
 | Feature | Tag | Efeito | Fases | Padrão | Reverte |
 |---|---|---|---|---|---|
 | Caps Lock via kanata | `capslock` | adds kanata (Homebrew) como serviço de sistema com /etc/kanata/kanata.kbd (toque = Esc, segurar = Ctrl, Shift+Caps Lock = Caps Lock) | system | ligada | sim |
-| Contenção de enxurradas de gdm-session-worker | `gdm-worker-watchdog` | adds um serviço de sistema que mata o excesso de gdm-session-worker quando eles se acumulam e tiram o prompt de senha da tela de bloqueio, sem tocar nos líderes de sessão, e grava um diagnóstico de cada enxurrada em /var/log/gdm-worker-watchdog | system | ligada | sim |
+| Contenção de enxurradas de gdm-session-worker | `gdm-worker-watchdog` | adds um serviço de sistema que mata o excesso de gdm-session-worker quando eles se acumulam e tiram o prompt de senha da tela de bloqueio, sem tocar nos líderes de sessão, e grava um diagnóstico de cada enxurrada em /var/log/gdm-worker-watchdog; na imagem dakota-inspiron-5490, que já traz o serviço, só remove a cópia local | system | ligada | sim |
 | Atalhos no estilo Omarchy | `omarchy-keybindings` | modifies atalhos do GNOME para janelas, apps e utilitários (gsettings), escolhidos um a um em seguida (just configure-keybindings); desmarcar um atalho, ou desligar, devolve o que ele mudou ao original | user | desligada | sim |
 
 ## Shell
