@@ -31,6 +31,23 @@ você nunca escolheu segue o padrão do catálogo. Cada usuário escolhe as
 features da própria fase de usuário; a fase de sistema segue as do
 administrador.
 
+Algumas features têm alternativas, perguntadas logo depois das features
+(tabela *Escolhas* em [docs/features.md](docs/features.md)). Hoje, só o
+**KeePassXC** (2.8.0 ou posterior), que pode vir como:
+
+| Escolha | Onde | Notas |
+|---|---|---|
+| `flatpak` (padrão) | Flatpak de sistema, do Flathub | um para todos os usuários |
+| `snap` | snap `keepassxc` (strict) | precisa do snapd provisionado |
+| `appimage` | AppImage oficial em `/usr/local/opt/keepassxc`, links em `/usr/local/bin` | conferido pelo `.DIGEST`; atualizado para a release nova a cada `just system` |
+| `distrobox` | container `keepassxc` (Debian sid, `keepassxc-full`) de cada usuário, exportado para `~/.local` | a menor imagem que já traz o 2.8.0 e passa pelo init do distrobox; atualize com `distrobox upgrade keepassxc` |
+
+A trava da YubiKey, o KeePassXC-Browser, o autostart e o atalho
+`Super+Shift+/` usam o que estiver instalado (primeiro o método escolhido).
+Trocar de método não remove a instalação anterior: a execução avisa e mostra
+o comando para removê-la. Cada método guarda as configurações do KeePassXC
+num lugar diferente (as bases `.kdbx` ficam onde estão).
+
 ## Duas fases
 
 Cada automação se divide numa **fase de sistema** (`/etc`, PAM, udev,
@@ -38,8 +55,9 @@ serviços de sistema, Flatpaks de sistema, snaps, fórmulas do Homebrew,
 contas — rodada por um administrador) e numa **fase de usuário** (o
 `~/.config`, os serviços da sessão, o dconf de cada pessoa — rodada por
 cada usuário, como ele mesmo, na própria sessão). `just check` garante a
-fronteira: nada na fase de usuário vira root ou instala software, nada na
-de sistema fala com uma sessão de usuário.
+fronteira: nada na fase de usuário vira root ou instala software (a exceção
+é o container distrobox rootless do KeePassXC, que é da pessoa), nada na de
+sistema fala com uma sessão de usuário.
 
 O Homebrew do Dakota pertence ao primeiro usuário (o administrador) e não
 se divide entre contas: as fórmulas (kanata, Neovim, rclone, pass-cli,
@@ -151,7 +169,7 @@ o regera). Os playbooks são idempotentes — rodar de novo é seguro.
 | `run-empowered.sh` | Roda o ansible-playbook sob `run0 --empower` (veja *Privilégio*) |
 | `site.yml`, `system.yml`, `user.yml` | As duas fases; as plays da de sistema; as da de usuário. Cada play tem a tag do id da sua feature |
 | `playbooks/system/`, `playbooks/user/` | Um arquivo por feature (ou algumas bem próximas), na sua fase |
-| `playbooks/tasks/` | Tasks compartilhadas (handlers da fase de usuário) |
+| `playbooks/tasks/` | Tasks compartilhadas (handlers da fase de usuário, detecção do KeePassXC) |
 | `playbooks/files/`, `playbooks/templates/` | Arquivos estáticos e templates Jinja2 |
 | `group_vars/all/main.yml` | Variáveis de todas as automações |
 | `group_vars/all/target.yml` | `target_user`/`target_home`: a conta que a execução configura |

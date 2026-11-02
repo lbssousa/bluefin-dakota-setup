@@ -8,6 +8,9 @@
 # Administradores escolhem todas as features; os demais usuários só as que
 # têm fase de usuário (o resto é da máquina, escolhido por um administrador).
 #
+# Cada feature ligada que tem alternativas (option em features.yml, ex.:
+# como instalar o KeePassXC) pergunta em seguida qual delas usar.
+#
 # Com omarchy-keybindings ligada, segue-se uma etapa por grupo de atalhos
 # (catálogo: playbooks/files/omarchy-keybindings.vars.yml), para escolher
 # um a um quais aplicar. `scripts/configure.sh keybindings` (`just
@@ -34,7 +37,7 @@ choose_many() { # cabeçalho; linhas "rótulo|id" no stdin; pré-seleção em $s
 only_keys=0
 [[ ${1:-} == keybindings ]] && only_keys=1
 
-declare -A feature_on key_on
+declare -A feature_on key_on option_value
 
 # As features, grupo a grupo.
 choose_features() {
@@ -66,10 +69,32 @@ choose_features() {
     done
 }
 
+# As alternativas das features ligadas, uma pergunta por feature. Uma
+# feature fora do menu deste usuário (só de sistema) não pergunta.
+choose_options() {
+    local fid question choice_lines choice_line cid label current options picked
+    mapfile -t option_lines < <(menu options)
+    for option_line in "${option_lines[@]}"; do
+        IFS=$'\t' read -r fid question <<<"$option_line"
+        [[ ${feature_on[$fid]:-false} == true ]] || continue
+        options=() current=""
+        mapfile -t choice_lines < <(menu choices "$fid")
+        for choice_line in "${choice_lines[@]}"; do
+            IFS=$'\t' read -r cid label on <<<"$choice_line"
+            options+=("$label|$cid")
+            [[ $on == 1 ]] && current=$label
+        done
+        picked=$(printf '%s\n' "${options[@]}" |
+            gum choose --height=10 --header="$question" --label-delimiter='|' --selected="$current") || true
+        [[ -n $picked ]] && option_value[$fid]=$picked
+    done
+}
+
 if [[ $only_keys == 1 ]]; then
     feature_on[omarchy-keybindings]=true
 else
     choose_features
+    choose_options
 fi
 
 # Atalhos no estilo Omarchy, um a um. Desmarcar um atalho já aplicado
@@ -105,12 +130,13 @@ json=$(
     {
         for id in "${!feature_on[@]}"; do printf 'features\t%s\t%s\n' "$id" "${feature_on[$id]}"; done
         for id in "${!key_on[@]}"; do printf 'omarchy-keybindings\t%s\t%s\n' "$id" "${key_on[$id]}"; done
+        for id in "${!option_value[@]}"; do printf 'options\t%s\t%s\n' "$id" "${option_value[$id]}"; done
     } | scripts/python -c '
 import json, sys
-out = {"features": {}, "omarchy-keybindings": {}}
+out = {"features": {}, "options": {}, "omarchy-keybindings": {}}
 for line in sys.stdin.read().splitlines():
     section, key, value = line.split("\t")
-    out[section][key] = value == "true"
+    out[section][key] = value if section == "options" else value == "true"
 print(json.dumps(out))
 '
 )

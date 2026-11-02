@@ -141,20 +141,86 @@ yubikey_pcscd_restart_udev_rule_dest: /etc/udev/rules.d/71-yubikey-pcscd-restart
 kanata_config_dest: /etc/kanata/kanata.kbd
 kanata_systemd_unit: /etc/systemd/system/kanata.service
 
+# KeePassXC (playbooks/{system,user}/keepassxc.yml) — instalado do jeito
+# escolhido em `just configure` (scripts/features.py passa a escolha nesta
+# variável; o padrão vem de features.yml), sempre 2.8.0 ou posterior:
+#   flatpak    Flatpak de sistema, do Flathub
+#   snap       snap "keepassxc" (strict); pula se não houver snapd
+#   appimage   o AppImage oficial (GitHub, conferido pelo .DIGEST) em
+#              /usr/local/opt, com links em /usr/local/bin e um .desktop
+#   distrobox  um container Debian sid de cada usuário (fase de usuário):
+#              a menor imagem que já traz o 2.8.0 e passa pelo init do
+#              distrobox (o Alpine ainda está no 2.7; o void-glibc mínimo
+#              quebra no init). keepassxc-full: o pacote "keepassxc" do
+#              Debian vem sem integração com navegador nem YubiKey.
+keepassxc_install_method: flatpak
+keepassxc_flatpak_id: org.keepassxc.KeePassXC
+keepassxc_flatpak_remote: flathub
+keepassxc_snap_name: keepassxc
+# Vazio = a release mais recente (consultada a cada execução); para fixar,
+# uma tag do GitHub (ex.: 2.8.0).
+keepassxc_appimage_version: ""
+keepassxc_appimage_repo: keepassxreboot/keepassxc
+keepassxc_appimage_dir: /usr/local/opt/keepassxc
+keepassxc_appimage_path: "{{ keepassxc_appimage_dir }}/KeePassXC-x86_64.AppImage"
+keepassxc_appimage_bin_dir: /usr/local/bin
+keepassxc_appimage_desktop: /usr/local/share/applications/org.keepassxc.KeePassXC.desktop
+keepassxc_appimage_icon: /usr/local/share/icons/hicolor/scalable/apps/keepassxc.svg
+keepassxc_distrobox_name: keepassxc
+keepassxc_distrobox_image: docker.io/library/debian:sid-slim
+keepassxc_distrobox_package: keepassxc-full
+keepassxc_distrobox_bin_dir: "{{ target_home }}/.local/bin"
+# Como achar, abrir e falar com cada instalação. `check` é um teste de
+# shell; `proxy` é o keepassxc-proxy (native messaging) visto do host.
+keepassxc_methods:
+  flatpak:
+    title: Flatpak
+    check: flatpak info {{ keepassxc_flatpak_id }}
+    exec: /usr/bin/flatpak run --branch=stable --arch=x86_64 --command=keepassxc {{ keepassxc_flatpak_id }}
+    proxy: /usr/bin/flatpak run --command=keepassxc-proxy {{ keepassxc_flatpak_id }}
+    icon: "{{ keepassxc_flatpak_id }}"
+    remove: flatpak uninstall {{ keepassxc_flatpak_id }}
+  snap:
+    title: snap
+    check: test -x /snap/bin/keepassxc
+    exec: /snap/bin/keepassxc
+    proxy: /snap/bin/keepassxc.proxy
+    icon: keepassxc
+    remove: snap remove {{ keepassxc_snap_name }}
+  appimage:
+    title: AppImage
+    check: test -x {{ keepassxc_appimage_bin_dir }}/keepassxc
+    exec: "{{ keepassxc_appimage_bin_dir }}/keepassxc"
+    proxy: "{{ keepassxc_appimage_bin_dir }}/keepassxc-proxy"
+    icon: keepassxc
+    remove: >-
+      run0 rm -r {{ keepassxc_appimage_dir }} {{ keepassxc_appimage_desktop }} {{ keepassxc_appimage_icon }}
+      {{ keepassxc_appimage_bin_dir }}/keepassxc{,-proxy,-cli}
+  distrobox:
+    title: distrobox
+    check: test -x {{ keepassxc_distrobox_bin_dir }}/keepassxc
+    exec: "{{ keepassxc_distrobox_bin_dir }}/keepassxc"
+    proxy: "{{ keepassxc_distrobox_bin_dir }}/keepassxc-proxy"
+    icon: keepassxc
+    remove: >-
+      distrobox enter -n {{ keepassxc_distrobox_name }} -- distrobox-export --app keepassxc --delete;
+      rm {{ keepassxc_distrobox_bin_dir }}/keepassxc{,-proxy,-cli};
+      distrobox rm -f {{ keepassxc_distrobox_name }}
+
 # KeePassXC — tranca as bases de cada sessão aberta quando a YubiKey é
 # removida (evento udev), via D-Bus
-# (org.keepassxc.KeePassXC.MainWindow.lockAllDatabases). O script fica em
-# /var/usrlocal/bin, que é gravável e é referenciado só pelo caminho
-# absoluto no RUN+= da regra (no Dakota, /usr/local aponta para lá).
-keepassxc_flatpak_id: org.keepassxc.KeePassXC
+# (org.keepassxc.KeePassXC.MainWindow.lockAllDatabases; o snap também
+# exporta esse nome). O script fica em /var/usrlocal/bin, que é gravável e
+# é referenciado só pelo caminho absoluto no RUN+= da regra (no Dakota,
+# /usr/local aponta para lá).
 keepassxc_yubikey_lock_script_dest: /var/usrlocal/bin/keepassxc-yubikey-lock.sh
 keepassxc_yubikey_lock_udev_rule_dest: /etc/udev/rules.d/70-keepassxc-yubikey-lock.rules
 
 # KeePassXC-Browser nos navegadores Flatpak (playbooks/user/keepassxc.yml).
 # Cada Flatpak só enxerga o próprio diretório de dados (~/.var/app/<id>/),
 # então o manifesto e o wrapper ficam DENTRO do diretório de cada
-# navegador, e o wrapper usa flatpak-spawn --host para rodar o
-# keepassxc-proxy do Flatpak do KeePassXC no host.
+# navegador, e o wrapper usa flatpak-spawn --host para rodar no host o
+# keepassxc-proxy da instalação encontrada (keepassxc_methods[].proxy).
 keepassxc_browser_extension_firefox_id: keepassxc-browser@keepassxc.org
 keepassxc_browser_extension_chrome_id: oboonakemofpalcgghocfoadofidjkkk
 keepassxc_native_messaging_manifest_name: org.keepassxc.keepassxc_browser.json

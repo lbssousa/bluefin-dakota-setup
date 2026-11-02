@@ -1,12 +1,22 @@
 ---
-# KeePassXC, parte de cada pessoa. A instalação do KeePassXC fica fora do
-# escopo: sem ele (Flatpak ou no PATH), as duas plays avisam e pulam.
+# KeePassXC, parte de cada pessoa. As duas últimas plays usam a instalação
+# encontrada — a do método escolhido (feature keepassxc) ou, sem ela,
+# qualquer outra (Flatpak, snap, AppImage, distrobox); sem nenhuma, avisam
+# e pulam.
 #
+#   keepassxc            com o método distrobox, o container rootless desta
+#                        pessoa (Debian sid, keepassxc-full) e o app e os
+#                        binários exportados para ~/.local; nos outros
+#                        métodos a instalação é da fase de sistema
+#                        (playbooks/system/keepassxc.yml). Atualizar:
+#                        `distrobox upgrade keepassxc`. Desligada, só para
+#                        de ser gerenciada.
 #   keepassxc-browser    ponte de native messaging entre o Flatpak do
 #                        KeePassXC e os navegadores Flatpak, para a extensão
 #                        KeePassXC-Browser. Cada Flatpak só enxerga o próprio
 #                        ~/.var/app/<id>, então o manifesto e um wrapper
-#                        (keepassxc-proxy-host.sh, flatpak-spawn --host)
+#                        (keepassxc-proxy-host, flatpak-spawn --host para o
+#                        keepassxc-proxy da instalação encontrada)
 #                        ficam DENTRO do diretório de cada navegador
 #                        instalado, que ganha o talk-name
 #                        org.freedesktop.Flatpak. Desligada (revert),
@@ -16,7 +26,101 @@
 #                        sistema" depende do portal Background). Desligada
 #                        (revert), remove o .desktop.
 #
-# Uso: just apply keepassxc-browser keepassxc-autostart
+# Uso: just apply keepassxc keepassxc-browser keepassxc-autostart
+- name: KeePassXC — container distrobox desta pessoa
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [keepassxc]
+
+  vars:
+    feature_on: "{{ features['keepassxc'] | default(true) }}"
+    box: "{{ keepassxc_distrobox_name }}"
+    box_enter: distrobox enter -n {{ keepassxc_distrobox_name | quote }} --
+
+  tasks:
+    - name: KeePassXC em distrobox
+      when: feature_on | bool and keepassxc_install_method == 'distrobox'
+      block:
+        - name: Verificar se o distrobox está disponível
+          ansible.builtin.command: which distrobox
+          register: keepassxc_distrobox_check
+          changed_when: false
+          check_mode: false
+          failed_when: false
+
+        - name: Avisar que o distrobox não foi encontrado
+          ansible.builtin.debug:
+            msg: >-
+              PULADO: distrobox não encontrado no PATH. Escolha outro método
+              de instalação do KeePassXC em `just configure`.
+          when: keepassxc_distrobox_check.rc != 0
+
+        - name: Criar e exportar o container
+          when: keepassxc_distrobox_check.rc == 0
+          block:
+            - name: Ver se o container já existe
+              ansible.builtin.command: distrobox list --no-color
+              register: keepassxc_distrobox_list
+              changed_when: false
+              check_mode: false
+
+            # O init do distrobox (que instala o keepassxc-full) roda no
+            # primeiro enter, logo abaixo: a primeira execução demora.
+            - name: Criar o container {{ box }} ({{ keepassxc_distrobox_image }})
+              ansible.builtin.command: >-
+                distrobox create --yes --no-entry
+                --name {{ box | quote }}
+                --image {{ keepassxc_distrobox_image | quote }}
+                --additional-packages {{ keepassxc_distrobox_package | quote }}
+              when: >-
+                keepassxc_distrobox_list.stdout_lines
+                | select('search', '\|\s*' ~ (box | regex_escape) ~ '\s*\|')
+                | list | length == 0
+
+            # Também cobre um container que já existia sem o pacote.
+            - name: Garantir o {{ keepassxc_distrobox_package }} no container
+              ansible.builtin.shell: >-
+                {{ box_enter }} sh -c
+                'dpkg-query -W -f="\${Status}" {{ keepassxc_distrobox_package }} 2>/dev/null
+                | grep -q "ok installed" && echo present ||
+                { sudo apt-get update -q && sudo apt-get install -y {{ keepassxc_distrobox_package }}; }'
+              register: keepassxc_distrobox_pkg
+              changed_when: "'present' not in keepassxc_distrobox_pkg.stdout_lines"
+
+            - name: Conferir a versão do KeePassXC no container (2.8.0 ou posterior)
+              ansible.builtin.command: "{{ box_enter }} dpkg-query -W -f=${Version} {{ keepassxc_distrobox_package }}"
+              register: keepassxc_distrobox_version
+              changed_when: false
+              check_mode: false
+              failed_when: >-
+                keepassxc_distrobox_version.rc != 0 or
+                not (keepassxc_distrobox_version.stdout_lines | last
+                     | regex_replace('[+~].*$', '')) is version('2.8.0', '>=')
+
+            - name: Exportar o KeePassXC para o menu de aplicativos
+              ansible.builtin.command:
+                cmd: "{{ box_enter }} distrobox-export --app keepassxc"
+                creates: "{{ target_xdg_data_home }}/applications/{{ box }}-org.keepassxc.KeePassXC.desktop"
+
+            - name: Exportar keepassxc, keepassxc-proxy e keepassxc-cli para ~/.local/bin
+              ansible.builtin.command:
+                cmd: >-
+                  {{ box_enter }} distrobox-export --bin /usr/bin/{{ item }}
+                  --export-path {{ keepassxc_distrobox_bin_dir | quote }}
+                creates: "{{ keepassxc_distrobox_bin_dir }}/{{ item }}"
+              loop: [keepassxc, keepassxc-proxy, keepassxc-cli]
+
+        - ansible.builtin.import_tasks: tasks/keepassxc-detect.yml
+
+        - name: Avisar sobre outras instalações do KeePassXC
+          ansible.builtin.debug:
+            msg: >-
+              AVISO: o KeePassXC também está instalado como
+              {{ keepassxc_methods[item].title }}, além do distrobox. Para
+              removê-lo: {{ keepassxc_methods[item].remove }}
+          loop: "{{ keepassxc_found_all | reject('equalto', 'distrobox') | list }}"
+
 - name: KeePassXC-Browser nos navegadores Flatpak
   hosts: localhost
   connection: local
@@ -27,19 +131,15 @@
     feature_on: "{{ features['keepassxc-browser'] | default(true) }}"
 
   tasks:
-    - name: Verificar se o KeePassXC está instalado
-      ansible.builtin.shell: flatpak info {{ keepassxc_flatpak_id }} >/dev/null 2>&1 || command -v keepassxc
-      register: keepassxc_check
-      changed_when: false
-      failed_when: false
+    - ansible.builtin.import_tasks: tasks/keepassxc-detect.yml
 
     - name: Avisar que o KeePassXC não foi encontrado
       ansible.builtin.debug:
         msg: >-
-          PULADO: KeePassXC não encontrado (nem o Flatpak
-          {{ keepassxc_flatpak_id }}, nem no PATH). Instale-o e rode
-          `just apply keepassxc-browser`.
-      when: feature_on | bool and keepassxc_check.rc != 0
+          PULADO: KeePassXC não encontrado (Flatpak, snap, AppImage ou
+          distrobox). Ligue a feature keepassxc em `just configure` e rode
+          `just apply keepassxc keepassxc-browser`.
+      when: feature_on | bool and keepassxc_found == ''
 
     - name: Ver quais navegadores Flatpak suportados estão instalados
       ansible.builtin.command: flatpak info {{ item.flatpak_id }}
@@ -59,19 +159,19 @@
       loop: "{{ keepassxc_browsers.results }}"
       loop_control:
         label: "{{ item.item.flatpak_id }}"
-      when: feature_on | bool and keepassxc_check.rc == 0 and item.rc == 0
+      when: feature_on | bool and keepassxc_found != '' and item.rc == 0
       vars:
         keepassxc_proxy_host_dest: "{{ target_home }}/.var/app/{{ item.item.flatpak_id }}/data/keepassxc-proxy-host"
 
     - name: Instalar o wrapper flatpak-spawn (keepassxc-proxy-host)
-      ansible.builtin.copy:
-        src: keepassxc-proxy-host.sh
+      ansible.builtin.template:
+        src: keepassxc-proxy-host.sh.j2
         dest: "{{ keepassxc_proxy_host_dest }}"
         mode: "0755"
       loop: "{{ keepassxc_browsers.results }}"
       loop_control:
         label: "{{ item.item.flatpak_id }}"
-      when: feature_on | bool and keepassxc_check.rc == 0 and item.rc == 0
+      when: feature_on | bool and keepassxc_found != '' and item.rc == 0
       vars:
         keepassxc_proxy_host_dest: "{{ target_home }}/.var/app/{{ item.item.flatpak_id }}/data/keepassxc-proxy-host"
 
@@ -83,7 +183,7 @@
       loop: "{{ keepassxc_browsers.results }}"
       loop_control:
         label: "{{ item.item.flatpak_id }}"
-      when: feature_on | bool and keepassxc_check.rc == 0 and item.rc == 0
+      when: feature_on | bool and keepassxc_found != '' and item.rc == 0
       vars:
         keepassxc_native_messaging_dir: >-
           {{ target_home }}/.var/app/{{ item.item.flatpak_id }}/{{
@@ -98,7 +198,7 @@
       loop: "{{ keepassxc_browsers.results }}"
       loop_control:
         label: "{{ item.item.flatpak_id }}"
-      when: feature_on | bool and keepassxc_check.rc == 0 and item.rc == 0
+      when: feature_on | bool and keepassxc_found != '' and item.rc == 0
       vars:
         keepassxc_proxy_host_dest: "{{ target_home }}/.var/app/{{ item.item.flatpak_id }}/data/keepassxc-proxy-host"
         keepassxc_native_messaging_dir: >-
@@ -124,7 +224,7 @@
       loop_control:
         label: "{{ item.item.item.flatpak_id }}"
       when: >-
-        feature_on | bool and keepassxc_check.rc == 0 and item is not skipped and
+        feature_on | bool and keepassxc_found != '' and item is not skipped and
         'org.freedesktop.Flatpak=talk' not in item.stdout
       changed_when: true
 
@@ -172,22 +272,11 @@
     feature_on: "{{ features['keepassxc-autostart'] | default(true) }}"
 
   tasks:
-    - name: Verificar se o KeePassXC está instalado (Flatpak)
-      ansible.builtin.command: flatpak info {{ keepassxc_flatpak_id }}
-      register: keepassxc_flatpak_check
-      changed_when: false
-      failed_when: false
-      when: feature_on | bool
-
-    - name: Verificar se o KeePassXC está instalado (PATH)
-      ansible.builtin.command: which keepassxc
-      register: keepassxc_bin_check
-      changed_when: false
-      failed_when: false
+    - ansible.builtin.import_tasks: tasks/keepassxc-detect.yml
       when: feature_on | bool
 
     - name: Autostart do KeePassXC
-      when: feature_on | bool and (keepassxc_flatpak_check.rc == 0 or keepassxc_bin_check.rc == 0)
+      when: feature_on | bool and keepassxc_found != ''
       block:
         - name: Garantir ~/.config/autostart
           ansible.builtin.file:
@@ -204,9 +293,8 @@
               Type=Application
               Name=KeePassXC
               Comment=Gerenciador de senhas
-              Icon={{ keepassxc_flatpak_id }}
-              Exec={{ '/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=keepassxc ' ~ keepassxc_flatpak_id
-                      if keepassxc_flatpak_check.rc == 0 else 'keepassxc' }}
+              Icon={{ keepassxc_methods[keepassxc_found].icon }}
+              Exec={{ keepassxc_methods[keepassxc_found].exec }}
               Terminal=false
               X-GNOME-Autostart-enabled=true
               # Gerenciado pelo bluefin-dakota-setup (feature keepassxc-autostart)

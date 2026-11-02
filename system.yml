@@ -19,6 +19,9 @@
 - name: "YubiKey: pam_u2f no system-auth, pcscd"
   ansible.builtin.import_playbook: playbooks/system/yubikey.yml
 
+- name: "KeePassXC: Flatpak, snap ou AppImage (distrobox: fase de usuário)"
+  ansible.builtin.import_playbook: playbooks/system/keepassxc.yml
+
 - name: KeePassXC trancado ao remover a YubiKey
   ansible.builtin.import_playbook: playbooks/system/keepassxc-yubikey-lock.yml
 

@@ -4,7 +4,9 @@
 #   playbooks/user/    nunca vira root nem instala software (Flatpak de
 #                      sistema, snap, Homebrew — o prefixo do Homebrew é do
 #                      administrador), para que um usuário fora do wheel
-#                      consiga rodá-lo
+#                      consiga rodá-lo. Um container distrobox rootless (o
+#                      do KeePassXC) é da pessoa e pode: o sudo dentro dele
+#                      não é root no host
 #   playbooks/system/  nunca fala com uma sessão de usuário (systemctl
 #                      --user, gsettings/dconf), que a execução de um
 #                      administrador só alcança para a própria conta

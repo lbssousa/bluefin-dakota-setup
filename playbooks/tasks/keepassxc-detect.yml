@@ -1,0 +1,22 @@
+---
+# Procura o KeePassXC instalado, primeiro do jeito escolhido
+# (keepassxc_install_method), depois dos outros (keepassxc_methods), e
+# define:
+#   keepassxc_found        o primeiro método encontrado, ou '' se nenhum
+#   keepassxc_found_all    todos os métodos encontrados
+#
+#   - ansible.builtin.import_tasks: tasks/keepassxc-detect.yml
+- name: Procurar o KeePassXC (Flatpak, snap, AppImage, distrobox)
+  ansible.builtin.shell: "{{ keepassxc_methods[item].check }}"
+  loop: >-
+    {{ [keepassxc_install_method]
+       + (keepassxc_methods.keys() | reject('equalto', keepassxc_install_method) | list) }}
+  register: keepassxc_detect
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Guardar o que foi encontrado
+  ansible.builtin.set_fact:
+    keepassxc_found_all: "{{ keepassxc_detect.results | selectattr('rc', 'equalto', 0) | map(attribute='item') | list }}"
+    keepassxc_found: "{{ keepassxc_detect.results | selectattr('rc', 'equalto', 0) | map(attribute='item') | first | default('') }}"

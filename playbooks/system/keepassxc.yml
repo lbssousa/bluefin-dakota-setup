@@ -1,0 +1,243 @@
+---
+# KeePassXC (2.8.0 ou posterior), instalado do jeito escolhido em
+# `just configure` (keepassxc_install_method; veja group_vars/all/main.yml):
+#
+#   flatpak    Flatpak de sistema, do Flathub — um só para todos os usuários
+#   snap       snap "keepassxc" (strict, canal stable); sem o binário
+#              `snap`, avisa e pula (o Dakota não traz snapd)
+#   appimage   o AppImage oficial da release mais recente do GitHub (ou de
+#              keepassxc_appimage_version), conferido pelo .DIGEST, em
+#              /usr/local/opt/keepassxc; keepassxc, keepassxc-proxy e
+#              keepassxc-cli em /usr/local/bin são links para ele (o AppRun
+#              escolhe pelo nome), mais um .desktop e o ícone em
+#              /usr/local/share. Cada execução atualiza para a release nova.
+#              O runtime é estático: não precisa da libfuse2, só do
+#              fusermount3 do host.
+#   distrobox  nada aqui além de conferir o distrobox: o container é de cada
+#              usuário (rootless), criado na fase de usuário
+#              (playbooks/user/keepassxc.yml).
+#
+# Trocar de método não remove a instalação anterior: a play avisa e mostra
+# o comando para removê-la. As configurações do KeePassXC ficam em lugares
+# diferentes em cada método (Flatpak: ~/.var/app/org.keepassxc.KeePassXC;
+# snap: ~/snap/keepassxc; AppImage e distrobox: ~/.config/keepassxc); as
+# bases (.kdbx) não mudam de lugar.
+#
+# Desligada, só para de ser gerenciada.
+#
+# Uso: just apply keepassxc
+- name: KeePassXC — instalação
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [keepassxc]
+
+  vars:
+    feature_on: "{{ features['keepassxc'] | default(true) }}"
+    method: "{{ keepassxc_install_method }}"
+
+  tasks:
+    - name: Instalar o KeePassXC
+      when: feature_on | bool
+      block:
+        - name: Conferir o método de instalação
+          ansible.builtin.assert:
+            that: method in keepassxc_methods
+            fail_msg: >-
+              keepassxc_install_method={{ method }} não é um método conhecido
+              ({{ keepassxc_methods.keys() | join(', ') }}). Rode `just configure`.
+            quiet: true
+
+        - name: Flatpak
+          when: method == 'flatpak'
+          become: true
+          block:
+            - name: Garantir o remote Flathub
+              community.general.flatpak_remote:
+                name: "{{ keepassxc_flatpak_remote }}"
+                flatpakrepo_url: https://flathub.org/repo/flathub.flatpakrepo
+                method: system
+                state: present
+
+            - name: Instalar o KeePassXC via Flatpak
+              community.general.flatpak:
+                name: "{{ keepassxc_flatpak_id }}"
+                remote: "{{ keepassxc_flatpak_remote }}"
+                method: system
+                state: present
+
+        - name: Snap
+          when: method == 'snap'
+          block:
+            - name: Verificar se o snap está disponível
+              ansible.builtin.command: which snap
+              register: keepassxc_snap_check
+              changed_when: false
+              check_mode: false
+              failed_when: false
+
+            - name: Avisar que o snap não foi encontrado
+              ansible.builtin.debug:
+                msg: >-
+                  PULADO: snap não encontrado no PATH. Provisione e habilite o
+                  snapd e rode `just apply keepassxc`, ou escolha outro método
+                  em `just configure`.
+              when: keepassxc_snap_check.rc != 0
+
+            - name: Instalar o KeePassXC via snap
+              community.general.snap:
+                name: "{{ keepassxc_snap_name }}"
+              become: true
+              register: keepassxc_snap_install
+              until: keepassxc_snap_install is succeeded
+              retries: 3
+              delay: 15
+              when: keepassxc_snap_check.rc == 0
+
+        - name: AppImage
+          when: method == 'appimage'
+          block:
+            - name: Consultar a release do KeePassXC no GitHub
+              ansible.builtin.uri:
+                url: >-
+                  https://api.github.com/repos/{{ keepassxc_appimage_repo }}/releases/{{
+                  'latest' if keepassxc_appimage_version | length == 0
+                  else 'tags/' ~ keepassxc_appimage_version }}
+                headers:
+                  Accept: application/vnd.github+json
+                return_content: true
+              register: keepassxc_release
+              check_mode: false
+
+            - name: Escolher o AppImage x86_64 da release
+              ansible.builtin.set_fact:
+                keepassxc_appimage_asset: >-
+                  {{ keepassxc_release.json.assets
+                     | selectattr('name', 'match', '^KeePassXC-.*-x86_64\.AppImage$') | first }}
+                keepassxc_release_tag: "{{ keepassxc_release.json.tag_name }}"
+
+            - name: Exigir o KeePassXC 2.8.0 ou posterior
+              ansible.builtin.assert:
+                that: keepassxc_release_tag is version('2.8.0', '>=')
+                fail_msg: "A release {{ keepassxc_release_tag }} é anterior à 2.8.0."
+                quiet: true
+
+            - name: Baixar o .DIGEST do AppImage (SHA-256)
+              ansible.builtin.uri:
+                url: >-
+                  {{ (keepassxc_release.json.assets
+                      | selectattr('name', 'equalto', keepassxc_appimage_asset.name ~ '.DIGEST')
+                      | first).browser_download_url }}
+                return_content: true
+              register: keepassxc_appimage_digest
+              check_mode: false
+
+            - name: Verificar o fusermount do host (o runtime do AppImage monta via FUSE)
+              ansible.builtin.shell: command -v fusermount3 || command -v fusermount
+              register: keepassxc_fusermount
+              changed_when: false
+              check_mode: false
+              failed_when: false
+
+            - name: Avisar que falta o fusermount
+              ansible.builtin.debug:
+                msg: >-
+                  AVISO: nem fusermount3 nem fusermount no PATH; o AppImage não
+                  vai montar. Rode-o com APPIMAGE_EXTRACT_AND_RUN=1 ou escolha
+                  outro método em `just configure`.
+              when: keepassxc_fusermount.rc != 0
+
+            - name: Instalar o AppImage, os links, o ícone e o .desktop
+              become: true
+              block:
+                - name: Garantir os diretórios em /usr/local
+                  ansible.builtin.file:
+                    path: "{{ item }}"
+                    state: directory
+                    mode: "0755"
+                  loop:
+                    - "{{ keepassxc_appimage_dir }}"
+                    - "{{ keepassxc_appimage_bin_dir }}"
+                    - "{{ keepassxc_appimage_desktop | dirname }}"
+                    - "{{ keepassxc_appimage_icon | dirname }}"
+
+                # Com checksum, o get_url só baixa de novo quando o arquivo
+                # difere: o mesmo caminho serve para todas as versões.
+                - name: Baixar o AppImage {{ keepassxc_release_tag }}
+                  ansible.builtin.get_url:
+                    url: "{{ keepassxc_appimage_asset.browser_download_url }}"
+                    dest: "{{ keepassxc_appimage_path }}"
+                    checksum: "sha256:{{ keepassxc_appimage_digest.content.split()[0] }}"
+                    owner: root
+                    group: root
+                    mode: "0755"
+
+                - name: Ligar keepassxc, keepassxc-proxy e keepassxc-cli ao AppImage
+                  ansible.builtin.file:
+                    src: "{{ keepassxc_appimage_path }}"
+                    dest: "{{ keepassxc_appimage_bin_dir }}/{{ item }}"
+                    state: link
+                  loop: [keepassxc, keepassxc-proxy, keepassxc-cli]
+
+                - name: Instalar o ícone
+                  ansible.builtin.get_url:
+                    url: >-
+                      https://raw.githubusercontent.com/{{ keepassxc_appimage_repo }}/{{
+                      keepassxc_release_tag }}/share/icons/application/scalable/apps/keepassxc.svg
+                    dest: "{{ keepassxc_appimage_icon }}"
+                    owner: root
+                    group: root
+                    mode: "0644"
+
+                # Na primeira execução, o AppRun ainda grava um .desktop
+                # próprio em ~/.local/share/applications (mesmo id), que
+                # prevalece para aquela pessoa.
+                - name: Instalar o .desktop
+                  ansible.builtin.copy:
+                    dest: "{{ keepassxc_appimage_desktop }}"
+                    owner: root
+                    group: root
+                    mode: "0644"
+                    content: |
+                      [Desktop Entry]
+                      Type=Application
+                      Name=KeePassXC
+                      GenericName=Password Manager
+                      GenericName[pt_BR]=Gerenciador de senhas
+                      Exec={{ keepassxc_appimage_bin_dir }}/keepassxc %f
+                      TryExec={{ keepassxc_appimage_bin_dir }}/keepassxc
+                      Icon=keepassxc
+                      StartupWMClass=keepassxc
+                      StartupNotify=true
+                      Terminal=false
+                      Categories=Utility;Security;Qt;
+                      MimeType=application/x-keepass2;
+                      # Gerenciado pelo bluefin-dakota-setup (feature keepassxc, AppImage)
+
+        - name: distrobox
+          when: method == 'distrobox'
+          block:
+            - name: Verificar se o distrobox está disponível
+              ansible.builtin.command: which distrobox
+              register: keepassxc_distrobox_check
+              changed_when: false
+              check_mode: false
+              failed_when: false
+
+            - name: Avisar sobre o distrobox
+              ansible.builtin.debug:
+                msg: >-
+                  {{ 'O container do KeePassXC é criado por cada usuário, em `just user`.'
+                     if keepassxc_distrobox_check.rc == 0 else
+                     'AVISO: distrobox não encontrado; a fase de usuário não vai conseguir criar o container do KeePassXC.' }}
+
+        - ansible.builtin.import_tasks: tasks/keepassxc-detect.yml
+
+        - name: Avisar sobre outras instalações do KeePassXC
+          ansible.builtin.debug:
+            msg: >-
+              AVISO: o KeePassXC também está instalado como
+              {{ keepassxc_methods[item].title }}, além de
+              {{ keepassxc_methods[method].title }}. Para removê-lo:
+              {{ keepassxc_methods[item].remove }}
+          loop: "{{ keepassxc_found_all | reject('equalto', method) | list }}"

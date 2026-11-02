@@ -26,7 +26,7 @@
 - name: "Proton Pass CLI: chaves SSH no agente ativo (opt-in)"
   ansible.builtin.import_playbook: playbooks/user/proton-pass.yml
 
-- name: "KeePassXC: KeePassXC-Browser nos navegadores Flatpak, autostart"
+- name: "KeePassXC: container distrobox, KeePassXC-Browser nos navegadores Flatpak, autostart"
   ansible.builtin.import_playbook: playbooks/user/keepassxc.yml
 
 - name: Atalhos no estilo Omarchy (opt-in)

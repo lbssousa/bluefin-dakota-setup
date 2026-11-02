@@ -16,6 +16,11 @@
 #             para de gerenciar (o que já foi feito fica)
 #   requires  outros ids que precisam estar ligados
 #   hidden    sempre aplicada, fora do menu
+#   option    uma escolha entre alternativas, feita em `just configure` logo
+#             depois das features (só se a feature estiver ligada) e gravada
+#             na chave `options` do arquivo de escolhas; chega às plays como
+#             a variável `var`:
+#               {var, title, default, choices: [{id, title}]}
 
 groups:
   accounts: Contas
@@ -92,10 +97,27 @@ features:
     default: false
     revert: true
 
+  - id: keepassxc
+    group: passwords
+    title: KeePassXC
+    effect: adds o KeePassXC 2.8.0+ do jeito escolhido em seguida — Flatpak de sistema (Flathub), snap, AppImage oficial em /usr/local ou um distrobox Debian sid de cada usuário; trocar de método não remove o anterior (avisa)
+    phases: [system, user]
+    default: true
+    revert: false
+    option:
+      var: keepassxc_install_method
+      title: Como instalar o KeePassXC?
+      default: flatpak
+      choices:
+        - {id: flatpak, title: Flatpak de sistema (Flathub)}
+        - {id: snap, title: snap (strict; precisa do snapd)}
+        - {id: appimage, title: AppImage oficial em /usr/local (atualizado a cada execução)}
+        - {id: distrobox, title: distrobox Debian sid (keepassxc-full) de cada usuário}
+
   - id: keepassxc-browser
     group: passwords
     title: KeePassXC-Browser nos navegadores Flatpak
-    effect: adds o manifesto de native messaging e um wrapper flatpak-spawn em cada navegador Flatpak instalado; modifies o override do navegador (talk-name org.freedesktop.Flatpak)
+    effect: adds o manifesto de native messaging e um wrapper flatpak-spawn (para o keepassxc-proxy da instalação encontrada) em cada navegador Flatpak instalado; modifies o override do navegador (talk-name org.freedesktop.Flatpak)
     phases: [user]
     default: true
     revert: true

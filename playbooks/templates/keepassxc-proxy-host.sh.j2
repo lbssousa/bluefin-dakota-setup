@@ -1,0 +1,11 @@
+#!/bin/sh
+# keepassxc-proxy-host — wrapper instalado DENTRO do diretório de dados de
+# cada navegador Flatpak (~/.var/app/<id>/data/keepassxc-proxy-host) pelo
+# bluefin-dakota-setup (feature keepassxc-browser).
+#
+# O navegador Flatpak não enxerga o host: o wrapper usa flatpak-spawn --host
+# para rodar lá o keepassxc-proxy do KeePassXC instalado (aqui, o
+# {{ keepassxc_methods[keepassxc_found].title }}) — a ponte de native
+# messaging que a extensão KeePassXC-Browser precisa para falar com o
+# KeePassXC. Regerado a cada execução, se o método mudar.
+exec flatpak-spawn --host {{ keepassxc_methods[keepassxc_found].proxy }} "$@"

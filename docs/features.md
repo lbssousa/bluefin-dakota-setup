@@ -28,7 +28,8 @@ desfaz na próxima execução; senão, desligar só para de gerenciar.
 |---|---|---|---|---|---|
 | Bitwarden | `bitwarden` | adds o Flatpak, a polkit action do desbloqueio biométrico e o agente SSH da sessão; modifies gcr-ssh-agent (mascarado) | system, user | desligada | não |
 | Proton Pass CLI | `proton-pass` | adds pass-cli (Homebrew) e um serviço systemd --user que injeta as chaves SSH do cofre no agente ativo | system, user | desligada | sim |
-| KeePassXC-Browser nos navegadores Flatpak | `keepassxc-browser` | adds o manifesto de native messaging e um wrapper flatpak-spawn em cada navegador Flatpak instalado; modifies o override do navegador (talk-name org.freedesktop.Flatpak) | user | ligada | sim |
+| KeePassXC | `keepassxc` | adds o KeePassXC 2.8.0+ do jeito escolhido em seguida — Flatpak de sistema (Flathub), snap, AppImage oficial em /usr/local ou um distrobox Debian sid de cada usuário; trocar de método não remove o anterior (avisa) | system, user | ligada | não |
+| KeePassXC-Browser nos navegadores Flatpak | `keepassxc-browser` | adds o manifesto de native messaging e um wrapper flatpak-spawn (para o keepassxc-proxy da instalação encontrada) em cada navegador Flatpak instalado; modifies o override do navegador (talk-name org.freedesktop.Flatpak) | user | ligada | sim |
 | KeePassXC no login | `keepassxc-autostart` | adds ~/.config/autostart/org.keepassxc.KeePassXC.desktop | user | ligada | sim |
 
 ## Desktop
@@ -66,3 +67,11 @@ desfaz na próxima execução; senão, desligar só para de gerenciar.
 | Feature | Tag | Efeito | Fases | Padrão | Reverte |
 |---|---|---|---|---|---|
 | Google Drive (rclone) | `rclone-gdrive` | adds rclone (Homebrew) e montagens do Google Drive (systemd --user) | system, user | desligada | não |
+
+## Escolhas
+
+Features com alternativas, escolhidas em `just configure` logo depois das features.
+
+| Feature | Pergunta | Escolhas | Padrão | Variável |
+|---|---|---|---|---|
+| KeePassXC | Como instalar o KeePassXC? | `flatpak`: Flatpak de sistema (Flathub)<br>`snap`: snap (strict; precisa do snapd)<br>`appimage`: AppImage oficial em /usr/local (atualizado a cada execução)<br>`distrobox`: distrobox Debian sid (keepassxc-full) de cada usuário | `flatpak` | `keepassxc_install_method` |

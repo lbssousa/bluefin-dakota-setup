@@ -6,10 +6,11 @@
 # lbssousa/nix-config (modules/system/security/keepassxc-yubikey-lock.nix).
 #
 # É da máquina, não de uma pessoa: o script percorre todas as sessões em
-# /run/user, então vale para todo usuário com o KeePassXC aberto. Se o
-# KeePassXC não estiver instalado (Flatpak de sistema ou no PATH), avisa e
-# pula. A instalação dele fica fora do escopo; a integração D-Bus vem
-# ligada por padrão (Ferramentas > Configurações > Geral).
+# /run/user, então vale para todo usuário com o KeePassXC aberto, qualquer
+# que seja o método de instalação (feature keepassxc). Se o KeePassXC não
+# estiver instalado (nem escolhido como distrobox, cujos containers são de
+# cada usuário), avisa e pula. A integração D-Bus vem ligada por padrão
+# (Ferramentas > Configurações > Geral).
 #
 # Desligada (revert), remove a regra e o script.
 #
@@ -22,26 +23,25 @@
 
   vars:
     feature_on: "{{ features['keepassxc-yubikey-lock'] | default(true) }}"
+    keepassxc_present: >-
+      {{ keepassxc_found | default('') != '' or
+         (features['keepassxc'] | default(false) and keepassxc_install_method == 'distrobox') }}
 
   tasks:
-    - name: Verificar se o KeePassXC está instalado
-      ansible.builtin.shell: flatpak info {{ keepassxc_flatpak_id }} >/dev/null 2>&1 || command -v keepassxc
-      register: keepassxc_check
-      changed_when: false
-      failed_when: false
+    - ansible.builtin.import_tasks: tasks/keepassxc-detect.yml
       when: feature_on | bool
 
     - name: Avisar que o KeePassXC não foi encontrado
       ansible.builtin.debug:
         msg: >-
-          PULADO: KeePassXC não encontrado (nem o Flatpak
-          {{ keepassxc_flatpak_id }}, nem no PATH). Instale-o e rode
-          `just apply keepassxc-yubikey-lock`.
-      when: feature_on | bool and keepassxc_check.rc != 0
+          PULADO: KeePassXC não encontrado (Flatpak, snap, AppImage ou
+          distrobox). Ligue a feature keepassxc em `just configure` e rode
+          `just apply keepassxc keepassxc-yubikey-lock`.
+      when: feature_on | bool and not keepassxc_present | bool
 
     - name: Instalar a regra udev e o script
       become: true
-      when: feature_on | bool and keepassxc_check.rc == 0
+      when: feature_on | bool and keepassxc_present | bool
       block:
         - name: Garantir o diretório do script
           ansible.builtin.file:
