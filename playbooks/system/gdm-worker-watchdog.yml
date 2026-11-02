@@ -8,8 +8,12 @@
 # Cada ação fica no journal (journalctl -u gdm-worker-watchdog), e cada
 # enxurrada grava um diagnóstico em /var/log/gdm-worker-watchdog (só root).
 #
+# A imagem dakota-inspiron-5490 já traz este serviço em /usr. Nela, em vez de
+# instalar, remove a cópia local, que teria precedência sobre a da imagem. O
+# script é o mesmo nos dois repositórios: mude nos dois.
+#
 # Desligada (revert), para o serviço e remove a unidade, o script e os
-# diagnósticos.
+# diagnósticos; se o serviço vier da imagem, mascara a unidade.
 #
 # Uso: just apply gdm-worker-watchdog
 - name: Contenção de enxurradas de gdm-session-worker
@@ -22,8 +26,15 @@
     feature_on: "{{ features['gdm-worker-watchdog'] | default(true) }}"
 
   tasks:
+    - name: Ver se a imagem já traz o serviço
+      ansible.builtin.stat:
+        path: "{{ gdm_worker_watchdog_image_unit }}"
+      register: gdm_worker_watchdog_image
+
     - name: Instalar e iniciar o serviço
-      when: feature_on | bool
+      when:
+        - feature_on | bool
+        - not gdm_worker_watchdog_image.stat.exists
       become: true
       block:
         - name: Garantir o diretório do script
@@ -59,25 +70,67 @@
             enabled: true
             state: started
 
-    - name: Remover o serviço
-      when: not feature_on | bool
+    # Os diagnósticos ficam: continuam valendo com o serviço da imagem. Remover
+    # a unidade também desfaz uma máscara deixada por esta feature desligada.
+    - name: Usar o serviço da imagem
+      when:
+        - feature_on | bool
+        - gdm_worker_watchdog_image.stat.exists
       become: true
       block:
-        - name: Parar e desabilitar o serviço
-          ansible.builtin.systemd:
-            name: gdm-worker-watchdog
-            enabled: false
-            state: stopped
-          failed_when: false
-
-        - name: Remover a unidade, o script e os diagnósticos
+        - name: Remover a cópia local
           ansible.builtin.file:
             path: "{{ item }}"
             state: absent
           loop:
             - "{{ gdm_worker_watchdog_systemd_unit }}"
+            - "{{ gdm_worker_watchdog_wants_link }}"
+            - "{{ gdm_worker_watchdog_script_dest }}"
+          notify:
+            - reload systemd
+            - restart gdm-worker-watchdog
+
+        - name: Iniciar o serviço da imagem
+          ansible.builtin.systemd:
+            name: gdm-worker-watchdog
+            daemon_reload: true
+            state: started
+
+    - name: Remover o serviço
+      when: not feature_on | bool
+      become: true
+      block:
+        - name: Parar o serviço
+          ansible.builtin.systemd:
+            name: gdm-worker-watchdog
+            state: stopped
+          failed_when: false
+
+        - name: Remover a habilitação, o script e os diagnósticos
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ gdm_worker_watchdog_wants_link }}"
             - "{{ gdm_worker_watchdog_script_dest }}"
             - "{{ gdm_worker_watchdog_log_dir }}"
+          notify: reload systemd
+
+        - name: Remover a unidade
+          when: not gdm_worker_watchdog_image.stat.exists
+          ansible.builtin.file:
+            path: "{{ gdm_worker_watchdog_systemd_unit }}"
+            state: absent
+          notify: reload systemd
+
+        # A habilitação da imagem está em /usr, e só uma máscara a desliga.
+        - name: Mascarar a unidade da imagem
+          when: gdm_worker_watchdog_image.stat.exists
+          ansible.builtin.file:
+            src: /dev/null
+            dest: "{{ gdm_worker_watchdog_systemd_unit }}"
+            state: link
+            force: true
           notify: reload systemd
 
   handlers:

@@ -161,6 +161,8 @@ gdm_worker_watchdog_snapshot_every: 300
 gdm_worker_watchdog_log_dir: /var/log/gdm-worker-watchdog
 gdm_worker_watchdog_script_dest: /var/usrlocal/bin/gdm-worker-watchdog.sh
 gdm_worker_watchdog_systemd_unit: /etc/systemd/system/gdm-worker-watchdog.service
+gdm_worker_watchdog_wants_link: /etc/systemd/system/multi-user.target.wants/gdm-worker-watchdog.service
+gdm_worker_watchdog_image_unit: /usr/lib/systemd/system/gdm-worker-watchdog.service
 
 # KeePassXC (playbooks/{system,user}/keepassxc.yml) — instalado do jeito
 # escolhido em `just configure` (scripts/features.py passa a escolha nesta

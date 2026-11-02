@@ -141,7 +141,7 @@ features:
   - id: gdm-worker-watchdog
     group: desktop
     title: Contenção de enxurradas de gdm-session-worker
-    effect: adds um serviço de sistema que mata o excesso de gdm-session-worker quando eles se acumulam e tiram o prompt de senha da tela de bloqueio, sem tocar nos líderes de sessão, e grava um diagnóstico de cada enxurrada em /var/log/gdm-worker-watchdog
+    effect: adds um serviço de sistema que mata o excesso de gdm-session-worker quando eles se acumulam e tiram o prompt de senha da tela de bloqueio, sem tocar nos líderes de sessão, e grava um diagnóstico de cada enxurrada em /var/log/gdm-worker-watchdog; na imagem dakota-inspiron-5490, que já traz o serviço, só remove a cópia local
     phases: [system]
     default: true
     revert: true
