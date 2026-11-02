@@ -180,6 +180,9 @@ write_snapshot() {
         timeout 10 busctl --system --no-pager --unique list 2>&1
     } >"$dir/dbus.txt"
     recent_journal "-$journal_minutes min" >"$dir/journal.txt"
+    # O registro existe mesmo que o journalctl falhe, e o limite de um registro
+    # a cada snapshot_every é o que impede uma enxurrada de encher o disco.
+    return 0
 }
 
 write_after() {
