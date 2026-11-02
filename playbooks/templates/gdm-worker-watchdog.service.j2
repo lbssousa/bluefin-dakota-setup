@@ -1,0 +1,27 @@
+[Unit]
+Description=Contém enxurradas de gdm-session-worker na tela de bloqueio do GNOME
+After=gdm.service
+
+[Service]
+Type=simple
+ExecStart={{ gdm_worker_watchdog_script_dest }}
+Environment=GDM_WORKER_WATCHDOG_MAX_SURPLUS={{ gdm_worker_watchdog_max_surplus }}
+Environment=GDM_WORKER_WATCHDOG_SATURATION={{ gdm_worker_watchdog_saturation }}
+Environment=GDM_WORKER_WATCHDOG_INTERVAL={{ gdm_worker_watchdog_interval }}
+Environment=GDM_WORKER_WATCHDOG_WATCH_ABOVE={{ gdm_worker_watchdog_watch_above }}
+Environment=GDM_WORKER_WATCHDOG_SNAPSHOT_KEEP={{ gdm_worker_watchdog_snapshot_keep }}
+Environment=GDM_WORKER_WATCHDOG_SNAPSHOT_EVERY={{ gdm_worker_watchdog_snapshot_every }}
+LogsDirectory={{ gdm_worker_watchdog_log_dir | basename }}
+LogsDirectoryMode=0700
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+# CAP_SYS_PTRACE: os fds e o wchan dos workers, nos registros de cada enxurrada.
+CapabilityBoundingSet=CAP_KILL CAP_SYS_PTRACE
+
+[Install]
+WantedBy=multi-user.target

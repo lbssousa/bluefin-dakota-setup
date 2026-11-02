@@ -1,0 +1,95 @@
+---
+# Enxurradas de gdm-session-worker esgotam as conexões de root no barramento
+# de sistema, e a tela de bloqueio do GNOME fica sem o prompt de senha. Um
+# serviço de sistema vigia a contagem de workers e mata o excesso, sem tocar
+# nos líderes de sessão (veja playbooks/files/gdm-worker-watchdog.sh).
+#
+# É da máquina, não de uma pessoa: vale para a tela de bloqueio de todo mundo.
+# Cada ação fica no journal (journalctl -u gdm-worker-watchdog), e cada
+# enxurrada grava um diagnóstico em /var/log/gdm-worker-watchdog (só root).
+#
+# Desligada (revert), para o serviço e remove a unidade, o script e os
+# diagnósticos.
+#
+# Uso: just apply gdm-worker-watchdog
+- name: Contenção de enxurradas de gdm-session-worker
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [gdm-worker-watchdog]
+
+  vars:
+    feature_on: "{{ features['gdm-worker-watchdog'] | default(true) }}"
+
+  tasks:
+    - name: Instalar e iniciar o serviço
+      when: feature_on | bool
+      become: true
+      block:
+        - name: Garantir o diretório do script
+          ansible.builtin.file:
+            path: "{{ gdm_worker_watchdog_script_dest | dirname }}"
+            state: directory
+            mode: "0755"
+
+        - name: Instalar o script
+          ansible.builtin.copy:
+            src: gdm-worker-watchdog.sh
+            dest: "{{ gdm_worker_watchdog_script_dest }}"
+            owner: root
+            group: root
+            mode: "0755"
+          notify: restart gdm-worker-watchdog
+
+        - name: Instalar a unidade systemd
+          ansible.builtin.template:
+            src: gdm-worker-watchdog.service.j2
+            dest: "{{ gdm_worker_watchdog_systemd_unit }}"
+            owner: root
+            group: root
+            mode: "0644"
+          notify:
+            - reload systemd
+            - restart gdm-worker-watchdog
+
+        - name: Habilitar e iniciar o serviço
+          ansible.builtin.systemd:
+            name: gdm-worker-watchdog
+            daemon_reload: true
+            enabled: true
+            state: started
+
+    - name: Remover o serviço
+      when: not feature_on | bool
+      become: true
+      block:
+        - name: Parar e desabilitar o serviço
+          ansible.builtin.systemd:
+            name: gdm-worker-watchdog
+            enabled: false
+            state: stopped
+          failed_when: false
+
+        - name: Remover a unidade, o script e os diagnósticos
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ gdm_worker_watchdog_systemd_unit }}"
+            - "{{ gdm_worker_watchdog_script_dest }}"
+            - "{{ gdm_worker_watchdog_log_dir }}"
+          notify: reload systemd
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+      listen: reload systemd
+
+    - name: restart gdm-worker-watchdog
+      ansible.builtin.systemd:
+        name: gdm-worker-watchdog
+        state: restarted
+      become: true
+      listen: restart gdm-worker-watchdog

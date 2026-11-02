@@ -141,6 +141,26 @@ yubikey_pcscd_restart_udev_rule_dest: /etc/udev/rules.d/71-yubikey-pcscd-restart
 kanata_config_dest: /etc/kanata/kanata.kbd
 kanata_systemd_unit: /etc/systemd/system/kanata.service
 
+# Contenção de enxurradas de gdm-session-worker
+# (playbooks/system/gdm-worker-watchdog.yml). Uma tela de bloqueio normal usa
+# um worker por serviço PAM (senha, digital, smartcard...); acima de
+# max_surplus, por duas leituras seguidas a cada interval segundos, o excesso
+# morre. A partir de saturation, perto do limite de 256 conexões de root no
+# barramento de sistema, morrem todos os que não são líderes de sessão.
+gdm_worker_watchdog_max_surplus: 16
+gdm_worker_watchdog_saturation: 200
+gdm_worker_watchdog_interval: 5
+# Para depurar: acima de watch_above, cada mudança na contagem vai para o
+# journal. Cada enxurrada grava um diretório de diagnóstico em log_dir (só
+# root), no máximo um a cada snapshot_every segundos, e ficam os snapshot_keep
+# mais recentes.
+gdm_worker_watchdog_watch_above: 6
+gdm_worker_watchdog_snapshot_keep: 30
+gdm_worker_watchdog_snapshot_every: 300
+gdm_worker_watchdog_log_dir: /var/log/gdm-worker-watchdog
+gdm_worker_watchdog_script_dest: /var/usrlocal/bin/gdm-worker-watchdog.sh
+gdm_worker_watchdog_systemd_unit: /etc/systemd/system/gdm-worker-watchdog.service
+
 # KeePassXC (playbooks/{system,user}/keepassxc.yml) — instalado do jeito
 # escolhido em `just configure` (scripts/features.py passa a escolha nesta
 # variável; o padrão vem de features.yml), sempre 2.8.0 ou posterior:

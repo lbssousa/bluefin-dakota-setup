@@ -139,8 +139,8 @@ o regera). Os playbooks são idempotentes — rodar de novo é seguro.
   [distrobox-typesetting](https://github.com/lbssousa/distrobox-typesetting)).
 - Em vez de `site-dakota.yml` + tags `never` + `uninstall.yml`: o catálogo,
   as fases e, nas features com **revert**, a reversão ao desligar (Caps Lock,
-  trava do KeePassXC, KeePassXC-Browser e autostart, Proton Pass, ssh-askpass,
-  atalhos no estilo Omarchy, libfprint).
+  contenção de workers do GDM, trava do KeePassXC, KeePassXC-Browser e
+  autostart, Proton Pass, ssh-askpass, atalhos no estilo Omarchy, libfprint).
 - O libfprint goodix538d não é mais compilado aqui: vem nas imagens do
   Dakota. A play `libfprint` só remove o que instalações antigas deixaram em
   `/usr/local`.

@@ -34,6 +34,9 @@
 - name: Caps Lock via kanata
   ansible.builtin.import_playbook: playbooks/system/capslock.yml
 
+- name: Contenção de enxurradas de gdm-session-worker
+  ansible.builtin.import_playbook: playbooks/system/gdm-worker-watchdog.yml
+
 - name: "ble.sh: make/gawk do Homebrew"
   ansible.builtin.import_playbook: playbooks/system/blesh.yml
 
