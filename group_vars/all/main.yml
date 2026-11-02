@@ -166,6 +166,9 @@ keepassxc_appimage_path: "{{ keepassxc_appimage_dir }}/KeePassXC-x86_64.AppImage
 keepassxc_appimage_bin_dir: /usr/local/bin
 keepassxc_appimage_desktop: /usr/local/share/applications/org.keepassxc.KeePassXC.desktop
 keepassxc_appimage_icon: /usr/local/share/icons/hicolor/scalable/apps/keepassxc.svg
+# Polkit action do Quick Unlock: a que vem dentro do AppImage não é vista
+# pelo polkitd do host.
+keepassxc_appimage_polkit_action: /usr/local/share/polkit-1/actions/org.keepassxc.KeePassXC.policy
 keepassxc_distrobox_name: keepassxc
 keepassxc_distrobox_image: docker.io/library/debian:sid-slim
 keepassxc_distrobox_package: keepassxc-full
@@ -195,7 +198,7 @@ keepassxc_methods:
     icon: keepassxc
     remove: >-
       run0 rm -r {{ keepassxc_appimage_dir }} {{ keepassxc_appimage_desktop }} {{ keepassxc_appimage_icon }}
-      {{ keepassxc_appimage_bin_dir }}/keepassxc{,-proxy,-cli}
+      {{ keepassxc_appimage_polkit_action }} {{ keepassxc_appimage_bin_dir }}/keepassxc{,-proxy,-cli}
   distrobox:
     title: distrobox
     check: test -x {{ keepassxc_distrobox_bin_dir }}/keepassxc

@@ -39,7 +39,7 @@ Algumas features têm alternativas, perguntadas logo depois das features
 |---|---|---|
 | `flatpak` (padrão) | Flatpak de sistema, do Flathub | um para todos os usuários |
 | `snap` | snap `keepassxc` (strict) | precisa do snapd provisionado |
-| `appimage` | AppImage oficial em `/usr/local/opt/keepassxc`, links em `/usr/local/bin` | conferido pelo `.DIGEST`; atualizado para a release nova a cada `just system` |
+| `appimage` | AppImage oficial em `/usr/local/opt/keepassxc`, links em `/usr/local/bin`, polkit action do Quick Unlock em `/usr/local/share/polkit-1/actions` | conferido pelo `.DIGEST`; atualizado para a release nova a cada `just system` |
 | `distrobox` | container `keepassxc` (Debian sid, `keepassxc-full`) de cada usuário, exportado para `~/.local` | a menor imagem que já traz o 2.8.0 e passa pelo init do distrobox; atualize com `distrobox upgrade keepassxc` |
 
 A trava da YubiKey, o KeePassXC-Browser, o autostart e o atalho

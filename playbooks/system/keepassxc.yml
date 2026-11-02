@@ -10,9 +10,10 @@
 #              /usr/local/opt/keepassxc; keepassxc, keepassxc-proxy e
 #              keepassxc-cli em /usr/local/bin são links para ele (o AppRun
 #              escolhe pelo nome), mais um .desktop e o ícone em
-#              /usr/local/share. Cada execução atualiza para a release nova.
-#              O runtime é estático: não precisa da libfuse2, só do
-#              fusermount3 do host.
+#              /usr/local/share e a polkit action do Quick Unlock (o polkitd
+#              não enxerga a que vem dentro do AppImage). Cada execução
+#              atualiza para a release nova. O runtime é estático: não
+#              precisa da libfuse2, só do fusermount3 do host.
 #   distrobox  nada aqui além de conferir o distrobox: o container é de cada
 #              usuário (rootless), criado na fase de usuário
 #              (playbooks/user/keepassxc.yml).
@@ -147,7 +148,7 @@
                   outro método em `just configure`.
               when: keepassxc_fusermount.rc != 0
 
-            - name: Instalar o AppImage, os links, o ícone e o .desktop
+            - name: Instalar o AppImage, os links, o ícone, o .desktop e a polkit action
               become: true
               block:
                 - name: Garantir os diretórios em /usr/local
@@ -160,6 +161,7 @@
                     - "{{ keepassxc_appimage_bin_dir }}"
                     - "{{ keepassxc_appimage_desktop | dirname }}"
                     - "{{ keepassxc_appimage_icon | dirname }}"
+                    - "{{ keepassxc_appimage_polkit_action | dirname }}"
 
                 # Com checksum, o get_url só baixa de novo quando o arquivo
                 # difere: o mesmo caminho serve para todas as versões.
@@ -214,6 +216,15 @@
                       MimeType=application/x-keepass2;
                       # Gerenciado pelo bluefin-dakota-setup (feature keepassxc, AppImage)
 
+                - name: Instalar a polkit action do KeePassXC (Quick Unlock)
+                  ansible.builtin.copy:
+                    src: org.keepassxc.KeePassXC.policy
+                    dest: "{{ keepassxc_appimage_polkit_action }}"
+                    owner: root
+                    group: root
+                    mode: "0644"
+                  notify: restart polkit
+
         - name: distrobox
           when: method == 'distrobox'
           block:
@@ -241,3 +252,11 @@
               {{ keepassxc_methods[method].title }}. Para removê-lo:
               {{ keepassxc_methods[item].remove }}
           loop: "{{ keepassxc_found_all | reject('equalto', method) | list }}"
+
+  handlers:
+    - name: restart polkit
+      ansible.builtin.systemd:
+        name: polkit
+        state: restarted
+      become: true
+      listen: restart polkit
