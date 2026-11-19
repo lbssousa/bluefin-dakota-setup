@@ -140,7 +140,8 @@ o regera). Os playbooks são idempotentes — rodar de novo é seguro.
 - Em vez de `site-dakota.yml` + tags `never` + `uninstall.yml`: o catálogo,
   as fases e, nas features com **revert**, a reversão ao desligar (Caps Lock,
   contenção de workers do GDM, trava do KeePassXC, KeePassXC-Browser e
-  autostart, Proton Pass, ssh-askpass, atalhos no estilo Omarchy, libfprint).
+  autostart, Proton Pass, ssh-askpass, atalhos no estilo Omarchy, libfprint,
+  pcscd).
 - O libfprint goodix538d não é mais compilado aqui: vem nas imagens do
   Dakota. A play `libfprint` só remove o que instalações antigas deixaram em
   `/usr/local`.
@@ -150,10 +151,39 @@ o regera). Os playbooks são idempotentes — rodar de novo é seguro.
   quem rodou o Ansible.
 - O e-mail do rclone e as contas adicionais saíram do repositório para o
   `local.yml`.
-- Migrações automáticas: o bloco antigo do pam_u2f, o
+- Migrações automáticas: o
   `bluefin-initial-setup.el` do Emacs e o backup dconf dos atalhos do Omarchy
   (restaurado; os atalhos são escolhidos de novo, um a um) são trocados
   pelos novos na primeira execução.
+
+## YubiKey: receitas `ujust` da imagem
+
+O pam_u2f e a chave GPG do cartão não são mais configurados aqui: a imagem
+[dakota-inspiron-5490](https://github.com/lbssousa/dakota-inspiron-5490)
+traz receitas interativas para isso, que cada pessoa roda quando quiser,
+com a chave na mão.
+
+| Antes (feature) | Agora |
+|---|---|
+| `yubikey-pam`, fase de sistema: pam_u2f no `system-auth` e drop-in do `polkit-agent-helper` | `ujust yubikey-u2f enable` |
+| `yubikey-pam`, fase de usuário: registro em `~/.config/Yubico/u2f_keys` | `ujust yubikey-u2f register` |
+| `gpg-yubikey`: chave pública do cartão no keyring, assinatura no git | `ujust yubikey-gpg import` |
+
+As receitas também removem chaves, ligam o PIN junto com o toque
+(`pin-on`/`pin-off`), desligam o pam_u2f (`disable`) e copiam as chaves SSH
+residentes (`ujust yubikey-ssh`). Numa máquina onde estas features já
+rodaram, nada precisa ser desfeito: o `enable` encontra a linha e o drop-in
+e não muda nada, e o `disable` reconhece os marcadores
+`# BEGIN/END yubikey pam_u2f` que elas deixaram. Escolhas antigas dessas
+features em `~/.config/bluefin-dakota-setup/features.yml` são ignoradas.
+
+O pcscd também não é mais configurado aqui. A YubiKey sumia para o GnuPG
+porque o OpenSC, registrado como módulo global do p11-kit, deixava um
+daemon do desktop abrir o cartão antes do `scdaemon`, que precisa dele
+exclusivo; a imagem corrige isso com o seu próprio `opensc.module`. O
+drop-in `udevadm settle` e a regra udev que reiniciava o pcscd a cada
+conexão da chave só escondiam o sintoma, e a feature `yubikey-pcscd` agora
+só os remove de instalações antigas (como a `libfprint`).
 
 ## Estrutura
 

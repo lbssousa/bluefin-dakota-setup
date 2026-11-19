@@ -41,29 +41,14 @@ features:
     default: true
     revert: false
 
-  - id: yubikey-pam
-    group: security
-    title: YubiKey no PAM
-    effect: modifies /etc/pam.d/system-auth (pam_u2f depois do pam_fprintd — digital, YubiKey, senha) e o sandbox do polkit-agent-helper; adds o registro da YubiKey em ~/.config/Yubico/u2f_keys
-    phases: [system, user]
-    default: true
-    revert: false
-
   - id: yubikey-pcscd
     group: security
     title: pcscd enxergando a YubiKey
-    effect: adds um drop-in do pcscd (udevadm settle no boot) e uma regra udev que o reinicia quando a YubiKey é conectada
+    effect: removes o drop-in do pcscd (udevadm settle) e a regra udev que o reiniciava ao conectar a YubiKey, deixados por instalações antigas (a imagem dakota-inspiron-5490 corrige a causa, o OpenSC disputando o cartão com o GnuPG)
     phases: [system]
-    default: true
-    revert: false
-
-  - id: gpg-yubikey
-    group: security
-    title: Chave GPG da YubiKey
-    effect: adds a chave pública OpenPGP do cartão ao keyring; modifies ~/.gitconfig (user.signingkey, commit/tag.gpgsign)
-    phases: [user]
     default: false
-    revert: false
+    revert: true
+    hidden: true
 
   - id: keepassxc-yubikey-lock
     group: security

@@ -14,9 +14,6 @@
 - name: "Preflight: como o usuário, na sessão gráfica, com a seleção"
   ansible.builtin.import_playbook: playbooks/user/preflight.yml
 
-- name: "YubiKey: registro para o pam_u2f, chave GPG e assinatura no git"
-  ansible.builtin.import_playbook: playbooks/user/yubikey.yml
-
 - name: ssh-askpass gráfico
   ansible.builtin.import_playbook: playbooks/user/ssh-askpass.yml
 

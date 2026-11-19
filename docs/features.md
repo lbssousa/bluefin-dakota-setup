@@ -16,9 +16,6 @@ desfaz na próxima execução; senão, desligar só para de gerenciar.
 
 | Feature | Tag | Efeito | Fases | Padrão | Reverte |
 |---|---|---|---|---|---|
-| YubiKey no PAM | `yubikey-pam` | modifies /etc/pam.d/system-auth (pam_u2f depois do pam_fprintd — digital, YubiKey, senha) e o sandbox do polkit-agent-helper; adds o registro da YubiKey em ~/.config/Yubico/u2f_keys | system, user | ligada | não |
-| pcscd enxergando a YubiKey | `yubikey-pcscd` | adds um drop-in do pcscd (udevadm settle no boot) e uma regra udev que o reinicia quando a YubiKey é conectada | system | ligada | não |
-| Chave GPG da YubiKey | `gpg-yubikey` | adds a chave pública OpenPGP do cartão ao keyring; modifies ~/.gitconfig (user.signingkey, commit/tag.gpgsign) | user | desligada | não |
 | Trava do KeePassXC ao remover a YubiKey | `keepassxc-yubikey-lock` | adds uma regra udev e um script que trancam o KeePassXC de cada sessão aberta quando a YubiKey sai da porta USB | system | ligada | sim |
 | ssh-askpass gráfico | `ssh-askpass` | adds SSH_ASKPASS e SSH_ASKPASS_REQUIRE=prefer em ~/.config/environment.d (PIN/toque da chave FIDO2 sem terminal) | user | ligada | sim |
 

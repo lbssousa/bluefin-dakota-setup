@@ -16,7 +16,7 @@
 - name: Contas adicionais (extra_users)
   ansible.builtin.import_playbook: playbooks/system/users.yml
 
-- name: "YubiKey: pam_u2f no system-auth, pcscd"
+- name: "YubiKey: remover o drop-in e a regra udev antigos do pcscd"
   ansible.builtin.import_playbook: playbooks/system/yubikey.yml
 
 - name: "KeePassXC: Flatpak, snap ou AppImage (distrobox: fase de usuário)"
