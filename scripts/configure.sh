@@ -34,6 +34,18 @@ choose_many() { # cabeçalho; linhas "rótulo|id" no stdin; pré-seleção em $s
         --selected="$selected" || true
 }
 
+# Uma feature que precisa de outra não é oferecida se essa outra já foi
+# respondida desligada (os grupos seguem a ordem do catálogo); desliga junto.
+# Requisitos de grupos ainda não respondidos ficam para o `menu save`.
+requires_met() { # ids dos requisitos, separados por vírgula
+    local req
+    local IFS=,
+    for req in $1; do
+        [[ ${feature_on[$req]:-} == false ]] && return 1
+    done
+    return 0
+}
+
 only_keys=0
 [[ ${1:-} == keybindings ]] && only_keys=1
 
@@ -54,7 +66,11 @@ choose_features() {
         options=() selected="" rows=()
         mapfile -t feature_lines < <(menu features "$group" "$admin")
         for feature_line in "${feature_lines[@]}"; do
-            IFS=$'\t' read -r id label on effect <<<"$feature_line"
+            IFS=$'\t' read -r id label on effect requires <<<"$feature_line"
+            if ! requires_met "${requires:-}"; then
+                feature_on[$id]=false
+                continue
+            fi
             options+=("$label|$id")
             rows+=("| $label | $effect |")
             [[ $on == 1 ]] && selected+="${selected:+,}$label"

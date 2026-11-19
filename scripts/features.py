@@ -276,7 +276,8 @@ def menu(args):
             if not admin and "user" not in f["phases"]:
                 continue
             mark = " ⟲" if f["revert"] else ""
-            print(f"{f['id']}\t{menu_label(f['title'] + mark)}\t{int(features[f['id']])}\t{f['effect']}")
+            requires = ",".join(f.get("requires", []))
+            print(f"{f['id']}\t{menu_label(f['title'] + mark)}\t{int(features[f['id']])}\t{f['effect']}\t{requires}")
     elif what == "options":
         # As features com option: id, pergunta.
         for f in catalog["features"]:
